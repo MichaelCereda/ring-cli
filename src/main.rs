@@ -80,7 +80,9 @@ fn replace_placeholders<'a>(
     result
 }
 
-fn load_configurations(config_path: Option<&str>) -> Result<Vec<Configuration>, Box<dyn std::error::Error>> {
+fn load_configurations(
+    config_path: Option<&str>,
+) -> Result<Vec<Configuration>, Box<dyn std::error::Error>> {
     let mut configurations = Vec::new();
 
     // Set the default config directory to ~/.ring-cli/configurations
@@ -94,7 +96,7 @@ fn load_configurations(config_path: Option<&str>) -> Result<Vec<Configuration>, 
     } else {
         default_config_dir
     };
-    
+
     if config_dir.is_file() {
         let content = fs::read_to_string(&config_dir)?;
         let config: Configuration = serde_yaml::from_str(&content)?;
@@ -107,12 +109,14 @@ fn load_configurations(config_path: Option<&str>) -> Result<Vec<Configuration>, 
             configurations.push(config);
         }
     } else {
-        return Err(Box::from("Provided config path is neither a file nor a directory"));
+        return Err(Box::from(
+            "Provided config path is neither a file nor a directory",
+        ));
     }
 
     for config in &configurations {
         for (_, cmd) in &config.commands {
-            cmd.validate()?;  // Validate each command after loading
+            cmd.validate()?; // Validate each command after loading
         }
     }
 
@@ -162,12 +166,14 @@ fn build_cli_from_configs(configs: &Vec<Configuration>) -> App {
                 .long("verbose")
                 .help("Print verbose output"),
         )
-        .arg(Arg::with_name("config")
-             .short("c")
-             .long("config")
-             .value_name("PATH")
-             .help("Path to a custom configuration file or directory")
-             .takes_value(true));
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("PATH")
+                .help("Path to a custom configuration file or directory")
+                .takes_value(true),
+        );
     for config in configs {
         let mut subcommand = SubCommand::with_name(&config.slug)
             .about(config.description.as_str())
@@ -292,16 +298,14 @@ fn execute_command(
                     Err(e) => eprintln!("Error executing HTTP request: {}", e),
                 }
             }
-            CmdType::Run { run } => {
-                match run_shell_commands(run, cmd_matches, verbose) {
-                    Ok(output) => {
-                        if !output.trim().is_empty() {
-                            println!("{}", output);
-                        }
+            CmdType::Run { run } => match run_shell_commands(run, cmd_matches, verbose) {
+                Ok(output) => {
+                    if !output.trim().is_empty() {
+                        println!("{}", output);
                     }
-                    Err(e) => return Err(e),
                 }
-            }
+                Err(e) => return Err(e),
+            },
         }
     }
     if let Some(subcommands) = &command.subcommands {
@@ -315,17 +319,16 @@ fn execute_command(
 }
 
 fn main() {
-    let config_path = std::env::args().find(|arg| arg.starts_with("--config=") || arg == "-c")
-    .and_then(|arg| arg.split('=').nth(1).map(String::from));
+    let config_path = std::env::args()
+        .find(|arg| arg.starts_with("--config=") || arg == "-c")
+        .and_then(|arg| arg.split('=').nth(1).map(String::from));
 
-let configurations = load_configurations(config_path.as_deref()).unwrap_or_else(|e| {
-    eprintln!("Error loading configurations: {}", e);
-    std::process::exit(1);
-});
+    let configurations = load_configurations(config_path.as_deref()).unwrap_or_else(|e| {
+        eprintln!("Error loading configurations: {}", e);
+        std::process::exit(1);
+    });
 
-let matches = build_cli_from_configs(&configurations).get_matches();
-
-
+    let matches = build_cli_from_configs(&configurations).get_matches();
 
     let is_quiet = matches.is_present("quiet");
     let is_verbose = matches.is_present("verbose");
