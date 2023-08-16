@@ -80,25 +80,39 @@ fn replace_placeholders<'a>(
     result
 }
 
-fn load_configurations() -> Result<Vec<Configuration>, Box<dyn std::error::Error>> {
+fn load_configurations(config_path: Option<&str>) -> Result<Vec<Configuration>, Box<dyn std::error::Error>> {
     let mut configurations = Vec::new();
 
-    let config_dir = dirs::home_dir()
+    // Set the default config directory to ~/.ring-cli/configurations
+    let default_config_dir = dirs::home_dir()
         .ok_or("Unable to determine home directory")?
         .join(".ring-cli/configurations");
 
-    let paths = fs::read_dir(config_dir)?;
-
-    for path in paths {
-        let content = fs::read_to_string(path?.path())?;
-
+    // If a custom config path is provided, use it. Otherwise, use the default directory.
+    let config_dir = if let Some(path) = config_path {
+        std::path::PathBuf::from(path)
+    } else {
+        default_config_dir
+    };
+    
+    if config_dir.is_file() {
+        let content = fs::read_to_string(&config_dir)?;
         let config: Configuration = serde_yaml::from_str(&content)?;
         configurations.push(config);
+    } else if config_dir.is_dir() {
+        let paths = fs::read_dir(config_dir)?;
+        for path in paths {
+            let content = fs::read_to_string(path?.path())?;
+            let config: Configuration = serde_yaml::from_str(&content)?;
+            configurations.push(config);
+        }
+    } else {
+        return Err(Box::from("Provided config path is neither a file nor a directory"));
     }
 
     for config in &configurations {
         for (_, cmd) in &config.commands {
-            cmd.validate()?; // This will recursively validate all nested subcommands
+            cmd.validate()?;  // Validate each command after loading
         }
     }
 
@@ -147,7 +161,13 @@ fn build_cli_from_configs(configs: &Vec<Configuration>) -> App {
                 .short("v")
                 .long("verbose")
                 .help("Print verbose output"),
-        );
+        )
+        .arg(Arg::with_name("config")
+             .short("c")
+             .long("config")
+             .value_name("PATH")
+             .help("Path to a custom configuration file or directory")
+             .takes_value(true));
     for config in configs {
         let mut subcommand = SubCommand::with_name(&config.slug)
             .about(config.description.as_str())
@@ -295,11 +315,17 @@ fn execute_command(
 }
 
 fn main() {
-    let configurations = load_configurations().unwrap_or_else(|e| {
-        eprintln!("Error loading configurations: {}", e);
-        std::process::exit(1);
-    });
-    let matches = build_cli_from_configs(&configurations).get_matches();
+    let config_path = std::env::args().find(|arg| arg.starts_with("--config=") || arg == "-c")
+    .and_then(|arg| arg.split('=').nth(1).map(String::from));
+
+let configurations = load_configurations(config_path.as_deref()).unwrap_or_else(|e| {
+    eprintln!("Error loading configurations: {}", e);
+    std::process::exit(1);
+});
+
+let matches = build_cli_from_configs(&configurations).get_matches();
+
+
 
     let is_quiet = matches.is_present("quiet");
     let is_verbose = matches.is_present("verbose");
