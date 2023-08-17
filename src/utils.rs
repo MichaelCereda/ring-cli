@@ -1,7 +1,7 @@
-use super::models::{Configuration, Http};
-use clap::ArgMatches;
+use super::models::{Configuration};
+
 use dirs;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{fs};
 
 pub fn replace_placeholders<'a>(
     template: &str,
