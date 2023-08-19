@@ -197,5 +197,4 @@ jobs:
         with:
           draft: true
           files: "ring-cli*"
-          body_path: Changes.md
         if: matrix.toolchain == 'stable' && startsWith( github.ref, 'refs/tags/v' )
