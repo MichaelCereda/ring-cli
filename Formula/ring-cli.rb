@@ -1,7 +1,7 @@
 class RingCli < Formula
   desc "CLI generator from YAML configurations"
   homepage "https://github.com/MichaelCereda/ring-cli"
-  version "1.1.0"
+  version "2.0.0"
   license "MIT"
 
   on_macos do
