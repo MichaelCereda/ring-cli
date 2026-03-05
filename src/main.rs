@@ -1,3 +1,4 @@
+mod cache;
 mod cli;
 mod errors;
 mod models;
@@ -142,26 +143,52 @@ fn install_alias(alias_name: &str, config_abs_path: &str) -> Result<(), anyhow::
     Ok(())
 }
 
-fn handle_init(path: Option<&String>, alias: Option<&String>) -> Result<(), anyhow::Error> {
-    let target = if let Some(p) = path {
-        PathBuf::from(p)
-    } else {
-        let dir = default_config_dir();
-        fs::create_dir_all(&dir)?;
-        dir.join("example.yml")
-    };
-
-    if target.exists() {
-        anyhow::bail!("File already exists: {}", target.display());
+fn install_completions(alias_name: &str) -> Result<(), anyhow::Error> {
+    let shells = detect_shell_configs();
+    for shell in &shells {
+        let content = fs::read_to_string(&shell.path)?;
+        let completion_marker = format!("# ring-cli-completions:{alias_name}");
+        if content.contains(&completion_marker) {
+            continue;
+        }
+        let hook = match shell.kind {
+            ShellKind::BashZsh => {
+                if shell.display_name.contains("zsh") {
+                    format!(
+                        "eval \"$(ring-cli --generate-completions zsh {alias_name})\" {completion_marker}"
+                    )
+                } else {
+                    format!(
+                        "eval \"$(ring-cli --generate-completions bash {alias_name})\" {completion_marker}"
+                    )
+                }
+            }
+            ShellKind::Fish => {
+                format!(
+                    "ring-cli --generate-completions fish {alias_name} | source {completion_marker}"
+                )
+            }
+            ShellKind::PowerShell => {
+                format!(
+                    "ring-cli --generate-completions powershell {alias_name} | Invoke-Expression {completion_marker}"
+                )
+            }
+        };
+        let mut file = fs::OpenOptions::new().append(true).open(&shell.path)?;
+        use std::io::Write;
+        writeln!(file, "{}", hook)?;
     }
+    Ok(())
+}
 
-    if let Some(parent) = target.parent() {
+fn create_default_config(path: &std::path::Path) -> Result<(), anyhow::Error> {
+    if path.exists() {
+        anyhow::bail!("File already exists: {}", path.display());
+    }
+    if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-
     let template = r#"# Ring-CLI Configuration
-# See https://github.com/user/ring-cli for documentation
-
 version: "2.0"
 description: "My custom CLI"
 commands:
@@ -174,54 +201,50 @@ commands:
     cmd:
       run:
         - "echo Hello, ${{name}}!"
-
-  # Example HTTP command:
-  # api-status:
-  #   description: "Check API status"
-  #   flags: []
-  #   cmd:
-  #     http:
-  #       method: "GET"
-  #       url: "https://httpbin.org/get"
-
-  # Example with environment variables:
-  # deploy:
-  #   description: "Deploy with auth"
-  #   flags:
-  #     - name: "target"
-  #       short: "t"
-  #       description: "Deploy target"
-  #   cmd:
-  #     run:
-  #       - "curl -H 'Authorization: Bearer ${{env.API_TOKEN}}' https://${{target}}/deploy"
-
-  # Example with subcommands:
-  # db:
-  #   description: "Database operations"
-  #   flags: []
-  #   subcommands:
-  #     migrate:
-  #       description: "Run migrations"
-  #       flags: []
-  #       cmd:
-  #         run:
-  #           - "echo Running migrations..."
-  #     seed:
-  #       description: "Seed database"
-  #       flags: []
-  #       cmd:
-  #         run:
-  #           - "echo Seeding database..."
 "#;
+    fs::write(path, template)?;
+    println!("Created configuration at: {}", path.display());
+    Ok(())
+}
 
-    fs::write(&target, template)?;
-    println!("Created configuration at: {}", target.display());
+fn handle_init(config_path: Option<&String>, alias: Option<&String>) -> Result<(), anyhow::Error> {
+    let alias_name = alias.ok_or_else(|| anyhow::anyhow!("--alias is required for init"))?;
+    validate_alias_name(alias_name)?;
 
-    if let Some(alias_name) = alias {
-        let abs_path = fs::canonicalize(&target)?;
-        let abs_path_str = abs_path.display().to_string();
-        install_alias(alias_name, &abs_path_str)?;
-    }
+    let target = if let Some(p) = config_path {
+        let path = PathBuf::from(p);
+        if !path.exists() {
+            create_default_config(&path)?;
+        }
+        path
+    } else {
+        let dir = default_config_dir();
+        fs::create_dir_all(&dir)?;
+        let path = dir.join(format!("{alias_name}.yml"));
+        if !path.exists() {
+            create_default_config(&path)?;
+        }
+        path
+    };
+
+    let abs_path = fs::canonicalize(&target)?;
+    let abs_path_str = abs_path.display().to_string();
+
+    // Read and validate config
+    let content = fs::read_to_string(&abs_path)?;
+    let _config: models::Configuration = serde_saphyr::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid configuration: {e}"))?;
+
+    // Save trusted config to cache
+    cache::save_trusted_config(alias_name, &abs_path_str, &content)?;
+
+    // Install shell alias
+    install_alias(alias_name, &abs_path_str)?;
+
+    // Install completion hooks
+    install_completions(alias_name)?;
+
+    println!("{}", style::success(&format!("Alias '{}' is ready!", alias_name)));
 
     Ok(())
 }
