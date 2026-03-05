@@ -58,8 +58,8 @@ pub fn add_subcommands_to_cli(
 /// The `--config` / `--base-dir` flags are intentionally absent here: in alias
 /// mode the alias name is passed via `--alias-mode <name>` and parsed before
 /// clap sees the argument list.
-pub fn build_cli(configs: &[Configuration]) -> clap::Command {
-    let mut app = clap::Command::new("ring-cli")
+pub fn build_cli(configs: &[Configuration], bin_name: &str) -> clap::Command {
+    let mut app = clap::Command::new(bin_name.to_owned())
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             clap::Arg::new("quiet")
@@ -150,6 +150,13 @@ pub fn build_ring_cli() -> clap::Command {
                         .long("references")
                         .value_name("PATH")
                         .help("Path to a references file listing config paths"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .short('f')
+                        .long("force")
+                        .help("Overwrite existing alias without prompting")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
 }
@@ -317,7 +324,7 @@ mod tests {
     #[test]
     fn test_build_cli_has_config_subcommand() {
         let config = make_test_config();
-        let app = build_cli(&[config]);
+        let app = build_cli(&[config], "ring-cli");
         let matches = app
             .try_get_matches_from(["ring-cli", "test", "greet", "--name", "Alice"])
             .expect("should parse");
@@ -336,7 +343,7 @@ mod tests {
             base_dir: None,
             commands: HashMap::new(),
         };
-        let app = build_cli(&[empty_config]);
+        let app = build_cli(&[empty_config], "ring-cli");
         let matches = app
             .try_get_matches_from(["ring-cli", "-q", "-v"])
             .expect("should parse");
@@ -373,7 +380,7 @@ mod tests {
             base_dir: None,
             commands,
         };
-        let app = build_cli(&[config]);
+        let app = build_cli(&[config], "ring-cli");
         let matches = app
             .try_get_matches_from(["ring-cli", "nested", "db", "migrate"])
             .expect("should parse nested subcommands");
@@ -453,9 +460,25 @@ mod tests {
     }
 
     #[test]
+    fn test_build_ring_cli_init_force_flag() {
+        let app = build_ring_cli();
+        let matches = app
+            .try_get_matches_from([
+                "ring-cli",
+                "init",
+                "--alias",
+                "my-tool",
+                "--force",
+            ])
+            .expect("should parse --force");
+        let init_matches = matches.subcommand_matches("init").expect("init subcommand");
+        assert!(init_matches.get_flag("force"));
+    }
+
+    #[test]
     fn test_build_cli_has_refresh_configuration() {
         let config = make_test_config();
-        let app = build_cli(&[config]);
+        let app = build_cli(&[config], "ring-cli");
         let matches = app
             .try_get_matches_from(["ring-cli", "refresh-configuration"])
             .expect("should parse");
@@ -465,7 +488,7 @@ mod tests {
     #[test]
     fn test_build_cli_color_flag() {
         let config = make_test_config();
-        let app = build_cli(&[config]);
+        let app = build_cli(&[config], "ring-cli");
         let matches = app
             .try_get_matches_from(["ring-cli", "--color=never"])
             .expect("should parse");

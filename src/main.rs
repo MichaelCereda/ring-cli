@@ -159,6 +159,45 @@ fn install_update_check(alias_name: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn clean_alias_lines(content: &str, alias_name: &str, kind: ShellKind) -> String {
+    let ring_cli_marker = "# ring-cli";
+    let completion_marker = format!("# ring-cli-completions:{alias_name}");
+    let update_marker = format!("# ring-cli-update-check:{alias_name}");
+    let alias_pattern = match kind {
+        ShellKind::BashZsh => format!("alias {alias_name}="),
+        ShellKind::Fish => format!("alias {alias_name} "),
+        ShellKind::PowerShell => format!("function {alias_name}"),
+    };
+
+    let filtered: Vec<&str> = content
+        .lines()
+        .filter(|line| {
+            let is_alias_line = line.contains(&alias_pattern) && line.contains(ring_cli_marker);
+            let is_completion_line = line.contains(&completion_marker);
+            let is_update_line = line.contains(&update_marker);
+            !is_alias_line && !is_completion_line && !is_update_line
+        })
+        .collect();
+
+    let mut result = filtered.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+fn clean_alias_from_shells(alias_name: &str) -> Result<(), anyhow::Error> {
+    let shells = detect_shell_configs();
+    for shell in &shells {
+        let content = fs::read_to_string(&shell.path)?;
+        let cleaned = clean_alias_lines(&content, alias_name, shell.kind);
+        if cleaned != content {
+            fs::write(&shell.path, &cleaned)?;
+        }
+    }
+    Ok(())
+}
+
 fn remove_update_check(alias_name: &str) -> Result<(), anyhow::Error> {
     let shells = detect_shell_configs();
     let marker = format!("# ring-cli-update-check:{alias_name}");
@@ -352,9 +391,28 @@ fn handle_init(
     alias: Option<&String>,
     warn_only_on_conflict: bool,
     check_for_updates: bool,
+    force: bool,
 ) -> Result<(), anyhow::Error> {
     let alias_name = alias.ok_or_else(|| anyhow::anyhow!("--alias is required for init"))?;
     validate_alias_name(alias_name)?;
+
+    // Check if alias already exists in any shell config
+    let shells = detect_shell_configs();
+    let exists_in_any = shells.iter().any(|shell| {
+        fs::read_to_string(&shell.path)
+            .map(|content| alias_exists(&content, alias_name, shell.kind))
+            .unwrap_or(false)
+    });
+
+    if exists_in_any {
+        if !force {
+            anyhow::bail!(
+                "Alias '{}' already exists. Use --force to overwrite.",
+                alias_name
+            );
+        }
+        clean_alias_from_shells(alias_name)?;
+    }
 
     let paths: Vec<PathBuf> = if let Some(ref_path) = references_path {
         resolve_references(std::path::Path::new(ref_path))?
@@ -507,7 +565,7 @@ fn main() -> anyhow::Result<()> {
             })
             .collect::<Result<_, _>>()?;
 
-        let mut cmd = cli::build_cli(&configs);
+        let mut cmd = cli::build_cli(&configs, alias_name);
         clap_complete::generate(shell, &mut cmd, alias_name.as_str(), &mut std::io::stdout());
         return Ok(());
     }
@@ -548,11 +606,17 @@ fn main() -> anyhow::Result<()> {
             })
             .collect::<Result<_, _>>()?;
 
-        // Strip --alias-mode and its value from args before clap sees them
+        // Strip --alias-mode and its value from args, replace argv[0] with alias name
         let clap_args: Vec<String> = {
             let mut out = Vec::with_capacity(args.len());
             let mut skip_next = false;
+            let mut first = true;
             for arg in &args {
+                if first {
+                    out.push(alias_name.clone());
+                    first = false;
+                    continue;
+                }
                 if skip_next {
                     skip_next = false;
                     continue;
@@ -566,7 +630,7 @@ fn main() -> anyhow::Result<()> {
             out
         };
 
-        let matches = cli::build_cli(&configs).get_matches_from(clap_args);
+        let matches = cli::build_cli(&configs, alias_name).get_matches_from(clap_args);
 
         // Initialize color mode
         let color_str = matches.get_one::<String>("color").map(|s| s.as_str()).unwrap_or("auto");
@@ -625,7 +689,7 @@ fn main() -> anyhow::Result<()> {
             out
         };
 
-        let matches = cli::build_cli(&configs).get_matches_from(clap_args);
+        let matches = cli::build_cli(&configs, "ring-cli").get_matches_from(clap_args);
 
         // Initialize color mode
         let color_str = matches.get_one::<String>("color").map(|s| s.as_str()).unwrap_or("auto");
@@ -670,7 +734,8 @@ fn main() -> anyhow::Result<()> {
             let alias = init_matches.get_one::<String>("alias");
             let warn_only = init_matches.get_flag("warn-only-on-conflict");
             let check_for_updates = init_matches.get_flag("check-for-updates");
-            return handle_init(config_paths, references, alias, warn_only, check_for_updates);
+            let force = init_matches.get_flag("force");
+            return handle_init(config_paths, references, alias, warn_only, check_for_updates, force);
         }
     }
 
@@ -721,6 +786,27 @@ mod tests {
         let content = "function my-tool { ring-cli --alias-mode my-tool @args } # ring-cli\n";
         assert!(alias_exists(content, "my-tool", ShellKind::PowerShell));
         assert!(!alias_exists(content, "other-tool", ShellKind::PowerShell));
+    }
+
+    #[test]
+    fn test_clean_alias_lines_removes_ring_cli_entries() {
+        let content = "# my stuff\nalias os='ring-cli --alias-mode os' # ring-cli\neval \"$(ring-cli --generate-completions zsh os)\" # ring-cli-completions:os\nring-cli --check-updates os # ring-cli-update-check:os\nexport PATH=$HOME/bin:$PATH\n";
+        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
+        assert_eq!(cleaned, "# my stuff\nexport PATH=$HOME/bin:$PATH\n");
+    }
+
+    #[test]
+    fn test_clean_alias_lines_preserves_other_aliases() {
+        let content = "alias os='ring-cli --alias-mode os' # ring-cli\nalias other='something'\n";
+        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
+        assert_eq!(cleaned, "alias other='something'\n");
+    }
+
+    #[test]
+    fn test_clean_alias_lines_ignores_non_ring_cli_alias() {
+        let content = "alias os='my-custom-command'\n";
+        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
+        assert_eq!(cleaned, "alias os='my-custom-command'\n");
     }
 
     #[test]

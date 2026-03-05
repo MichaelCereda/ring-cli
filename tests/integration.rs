@@ -154,6 +154,7 @@ fn test_init_creates_file() {
             target.to_str().unwrap(),
             "--alias",
             "my-tool",
+            "--force",
         ])
         .output()
         .expect("failed to run cargo run");
@@ -185,7 +186,7 @@ commands:
 "#;
     std::fs::write(&target, yaml).unwrap();
     let output = cargo_bin()
-        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "existing-test"])
+        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "existing-test", "--force"])
         .output()
         .expect("failed to run");
     assert!(
@@ -244,7 +245,7 @@ fn test_init_alias_appends_to_shell_config() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let target = dir.path().join("alias_test.yml");
     let output = cargo_bin()
-        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "my-tool"])
+        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "my-tool", "--force"])
         .output()
         .expect("failed to run cargo run");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -261,28 +262,54 @@ fn test_init_alias_appends_to_shell_config() {
 }
 
 #[test]
-fn test_init_alias_no_duplicate() {
+fn test_init_alias_no_duplicate_without_force() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let target1 = dir.path().join("first.yml");
     let output1 = cargo_bin()
-        .args(["init", "--config-path", target1.to_str().unwrap(), "--alias", "dup-test"])
+        .args(["init", "--config-path", target1.to_str().unwrap(), "--alias", "dup-test", "--force"])
         .output()
         .expect("failed to run cargo run");
     assert!(output1.status.success(), "first init failed");
 
+    // Second init without --force should fail
     let target2 = dir.path().join("second.yml");
     let output2 = cargo_bin()
         .args(["init", "--config-path", target2.to_str().unwrap(), "--alias", "dup-test"])
         .output()
         .expect("failed to run cargo run");
-    let stdout2 = String::from_utf8_lossy(&output2.stdout);
+    assert!(!output2.status.success(), "second init should fail without --force");
+    let stderr2 = String::from_utf8_lossy(&output2.stderr);
+    assert!(
+        stderr2.contains("already exists") && stderr2.contains("--force"),
+        "expected error mentioning --force:\n{stderr2}"
+    );
+}
+
+#[test]
+fn test_init_alias_overwrite_with_force() {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    let target1 = dir.path().join("first.yml");
+    let output1 = cargo_bin()
+        .args(["init", "--config-path", target1.to_str().unwrap(), "--alias", "force-test", "--force"])
+        .output()
+        .expect("failed to run cargo run");
+    assert!(output1.status.success(), "first init failed");
+
+    // Second init with --force should succeed
+    let target2 = dir.path().join("second.yml");
+    let output2 = cargo_bin()
+        .args(["init", "--config-path", target2.to_str().unwrap(), "--alias", "force-test", "--force"])
+        .output()
+        .expect("failed to run cargo run");
     assert!(
         output2.status.success(),
-        "second init failed:\n{}", String::from_utf8_lossy(&output2.stderr)
+        "second init with --force should succeed:\n{}",
+        String::from_utf8_lossy(&output2.stderr)
     );
+    let stdout2 = String::from_utf8_lossy(&output2.stdout);
     assert!(
-        stdout2.contains("Created configuration at:"),
-        "expected creation message in stdout:\n{stdout2}"
+        stdout2.contains("is ready!"),
+        "expected success message after overwrite:\n{stdout2}"
     );
 }
 
@@ -410,6 +437,7 @@ fn test_init_with_references_file() {
             refs.to_str().unwrap(),
             "--alias",
             "refs-test",
+            "--force",
         ])
         .output()
         .expect("failed to run");
@@ -443,6 +471,7 @@ fn test_init_references_missing_config_errors() {
             refs.to_str().unwrap(),
             "--alias",
             "bad-refs-test",
+            "--force",
         ])
         .output()
         .expect("failed to run");
@@ -473,6 +502,7 @@ fn test_init_check_for_updates_flag_accepted() {
             "--alias",
             "check-test",
             "--check-for-updates",
+            "--force",
         ])
         .output()
         .expect("failed to run");
@@ -498,6 +528,7 @@ fn test_check_updates_no_changes_silent() {
             config_path.to_str().unwrap(),
             "--alias",
             "stable-test",
+            "--force",
         ])
         .output()
         .expect("failed to run init");
@@ -535,6 +566,7 @@ fn test_check_updates_detects_changes() {
             config_path.to_str().unwrap(),
             "--alias",
             "changing-test",
+            "--force",
         ])
         .output()
         .expect("failed to run init");
