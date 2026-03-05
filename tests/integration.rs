@@ -280,3 +280,104 @@ fn test_init_alias_no_duplicate() {
         "expected creation message in stdout:\n{stdout2}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Task 9 & 10: help output, color, and edge-case tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_alias_mode_help_shows_commands() {
+    let output = cargo_bin()
+        .args(["-c", "tests/fixtures/valid_config.yml", "--help"])
+        .output()
+        .expect("failed to run");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(combined.contains("greet"), "missing 'greet' in help:\n{combined}");
+    assert!(combined.contains("multi"), "missing 'multi' in help:\n{combined}");
+    assert!(combined.contains("refresh-configuration"), "missing 'refresh-configuration':\n{combined}");
+}
+
+#[test]
+fn test_no_ansi_when_piped() {
+    let output = cargo_bin()
+        .args(["-c", "tests/fixtures/valid_config.yml", "greet", "--name", "Test"])
+        .output()
+        .expect("failed to run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("\x1b["), "ANSI codes found in piped output:\n{stdout}");
+}
+
+#[test]
+fn test_no_color_env_disables_ansi() {
+    let output = cargo_bin()
+        .env("NO_COLOR", "1")
+        .args(["-c", "tests/fixtures/valid_config.yml", "--help"])
+        .output()
+        .expect("failed to run");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!combined.contains("\x1b["), "ANSI codes found with NO_COLOR=1:\n{combined}");
+}
+
+#[test]
+fn test_empty_config_shows_help() {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    let config_path = dir.path().join("empty.yml");
+    let yaml = "version: \"2.0\"\ndescription: \"Empty CLI\"\ncommands: {}\n";
+    std::fs::write(&config_path, yaml).unwrap();
+    let output = cargo_bin()
+        .args(["-c", config_path.to_str().unwrap(), "--help"])
+        .output()
+        .expect("failed to run");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(combined.contains("Empty CLI"), "expected description in help:\n{combined}");
+    assert!(combined.contains("refresh-configuration"), "should still show refresh-configuration:\n{combined}");
+}
+
+#[test]
+fn test_alias_mode_version() {
+    let output = cargo_bin()
+        .args(["-c", "tests/fixtures/valid_config.yml", "--version"])
+        .output()
+        .expect("failed to run");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(combined.contains(version), "version {version} not found in:\n{combined}");
+}
+
+#[test]
+fn test_color_flag_never() {
+    let output = cargo_bin()
+        .args(["-c", "tests/fixtures/valid_config.yml", "--color=never", "greet", "--name", "Test"])
+        .output()
+        .expect("failed to run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Hello, Test!"), "command should still run with --color=never:\n{stdout}");
+    assert!(!stdout.contains("\x1b["), "ANSI codes found with --color=never:\n{stdout}");
+}
+
+#[test]
+fn test_init_requires_alias() {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    let target = dir.path().join("no_alias.yml");
+    let output = cargo_bin()
+        .args(["init", "--config-path", target.to_str().unwrap()])
+        .output()
+        .expect("failed to run");
+    assert!(!output.status.success(), "init without --alias should fail");
+}
