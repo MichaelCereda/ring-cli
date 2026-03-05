@@ -44,6 +44,29 @@ pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, RingErr
     Ok(result)
 }
 
+/// Load a single `Configuration` from a file path.
+///
+/// Reads, parses and validates the YAML at `config_path`, returning the
+/// resulting `Configuration` or a `RingError` on any failure.
+pub fn load_configuration(config_path: &str) -> Result<Configuration, RingError> {
+    let path = std::path::Path::new(config_path);
+    let path_str = path.display().to_string();
+    let content = fs::read_to_string(path).map_err(|e| RingError::Io {
+        path: path_str.clone(),
+        source: e,
+    })?;
+    let config: Configuration = serde_saphyr::from_str(&content).map_err(|e| RingError::YamlParse {
+        path: path_str,
+        source: Box::new(e),
+    })?;
+    for (cmd_name, cmd) in &config.commands {
+        cmd.validate(cmd_name)?;
+    }
+    Ok(config)
+}
+
+// Kept for backwards compatibility with tests; will be removed in a future cleanup.
+#[allow(dead_code)]
 pub fn load_configurations(
     config_path: Option<&str>,
 ) -> Result<Vec<Configuration>, RingError> {

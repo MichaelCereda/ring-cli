@@ -228,12 +228,10 @@ commands:
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() >= 2 && args[1] == "init" {
-        let init_path = args.iter().position(|a| a == "--config-path").and_then(|i| args.get(i + 1));
-        let alias = args.iter().position(|a| a == "--alias").and_then(|i| args.get(i + 1));
-        return handle_init(init_path, alias);
-    }
 
+    // Detect config path (alias bakes in -c /path or --config=path).
+    // We find the config argument first, then strip it from the arg list
+    // before handing the rest to clap so that clap never sees --config.
     let config_path = args.iter()
         .find(|arg| arg.starts_with("--config="))
         .and_then(|arg| arg.split('=').nth(1).map(String::from))
@@ -243,26 +241,73 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|i| args.get(i + 1).cloned())
         });
 
-    let configurations = utils::load_configurations(config_path.as_deref())?;
+    if let Some(ref path) = config_path {
+        // ALIAS MODE: load config, build CLI, dispatch.
+        // Strip the config flag (and its value) from args before clap parses them.
+        let clap_args: Vec<String> = {
+            let mut out = Vec::with_capacity(args.len());
+            let mut skip_next = false;
+            for arg in &args {
+                if skip_next {
+                    skip_next = false;
+                    continue;
+                }
+                if arg.starts_with("--config=") {
+                    // --config=VALUE form — skip the single token
+                    continue;
+                }
+                if arg == "-c" || arg == "--config" {
+                    // separate-value form — skip this token and the next
+                    skip_next = true;
+                    continue;
+                }
+                out.push(arg.clone());
+            }
+            out
+        };
 
-    let matches = cli::build_cli_from_configs(&configurations).get_matches();
+        let config = utils::load_configuration(path)?;
+        let matches = cli::build_cli(&config).get_matches_from(clap_args);
 
-    let is_quiet = matches.get_flag("quiet");
-    let is_verbose = matches.get_flag("verbose");
-    let base_dir = matches.get_one::<String>("base_dir").map(|s| s.as_str());
+        // Initialize color mode
+        let color_str = matches.get_one::<String>("color").map(|s| s.as_str()).unwrap_or("auto");
+        style::init(match color_str {
+            "always" => style::ColorMode::Always,
+            "never" => style::ColorMode::Never,
+            _ => style::ColorMode::Auto,
+        });
 
-    for config in &configurations {
+        let is_quiet = matches.get_flag("quiet");
+        let is_verbose = matches.get_flag("verbose");
+
+        // Handle refresh-configuration
+        if matches.subcommand_matches("refresh-configuration").is_some() {
+            println!("refresh-configuration not yet implemented");
+            return Ok(());
+        }
+
+        // Dispatch user commands
         for (cmd_name, cmd) in &config.commands {
             if let Some(cmd_matches) = matches.subcommand_matches(cmd_name) {
-                if let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, base_dir) {
+                if let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, None) {
                     if !is_quiet {
-                        eprintln!("Error: {}", e);
+                        eprintln!("{}", style::error(&e.to_string()));
                     }
                     std::process::exit(1);
                 }
             }
         }
+    } else {
+        // INSTALLER MODE: ring-cli init
+        let matches = cli::build_ring_cli().get_matches();
+
+        if let Some(init_matches) = matches.subcommand_matches("init") {
+            let config_path = init_matches.get_one::<String>("config-path");
+            let alias = init_matches.get_one::<String>("alias");
+            return handle_init(config_path, alias);
+        }
     }
+
     Ok(())
 }
 

@@ -6,6 +6,10 @@ fn cargo_bin() -> Command {
     cmd
 }
 
+// ---------------------------------------------------------------------------
+// Installer-mode (no -c flag) help output
+// ---------------------------------------------------------------------------
+
 #[test]
 fn test_help_output() {
     let output = cargo_bin()
@@ -14,12 +18,17 @@ fn test_help_output() {
         .expect("failed to run cargo run");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let combined = format!("{}{}", stdout, String::from_utf8_lossy(&output.stderr));
-    assert!(combined.contains("Ring CLI Tool"), "missing 'Ring CLI Tool' in:\n{combined}");
-    assert!(combined.contains("--quiet"), "missing --quiet in:\n{combined}");
-    assert!(combined.contains("--verbose"), "missing --verbose in:\n{combined}");
-    assert!(combined.contains("--config"), "missing --config in:\n{combined}");
-    assert!(combined.contains("--base-dir"), "missing --base-dir in:\n{combined}");
+    // In installer mode we show the ring-cli about text and the init subcommand.
+    assert!(
+        combined.contains("CLI generator from YAML configurations"),
+        "missing about text in:\n{combined}"
+    );
+    assert!(combined.contains("init"), "missing 'init' subcommand in:\n{combined}");
 }
+
+// ---------------------------------------------------------------------------
+// Version
+// ---------------------------------------------------------------------------
 
 #[test]
 fn test_version_output() {
@@ -36,11 +45,16 @@ fn test_version_output() {
     assert!(combined.contains(version), "version {version} not found in:\n{combined}");
 }
 
+// ---------------------------------------------------------------------------
+// Alias mode: -c <path> is stripped before clap sees it
+// ---------------------------------------------------------------------------
+
 #[test]
 fn test_load_fixture_config_and_run_command() {
     let output = cargo_bin()
         .args([
-            "--config=tests/fixtures/valid_config.yml",
+            "-c",
+            "tests/fixtures/valid_config.yml",
             "greet",
             "--name",
             "World",
@@ -58,7 +72,7 @@ fn test_load_fixture_config_and_run_command() {
 #[test]
 fn test_multi_step_command() {
     let output = cargo_bin()
-        .args(["--config=tests/fixtures/valid_config.yml", "multi"])
+        .args(["-c", "tests/fixtures/valid_config.yml", "multi"])
         .output()
         .expect("failed to run cargo run");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -73,10 +87,14 @@ fn test_multi_step_command() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Alias mode: invalid configs still surface validation errors
+// ---------------------------------------------------------------------------
+
 #[test]
 fn test_invalid_config_both_cmd_and_subcommands() {
     let output = cargo_bin()
-        .args(["--config=tests/fixtures/invalid_both.yml", "bad"])
+        .args(["-c", "tests/fixtures/invalid_both.yml", "bad"])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -93,7 +111,7 @@ fn test_invalid_config_both_cmd_and_subcommands() {
 #[test]
 fn test_invalid_config_neither_cmd_nor_subcommands() {
     let output = cargo_bin()
-        .args(["--config=tests/fixtures/invalid_neither.yml", "bad"])
+        .args(["-c", "tests/fixtures/invalid_neither.yml", "bad"])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -110,7 +128,7 @@ fn test_invalid_config_neither_cmd_nor_subcommands() {
 #[test]
 fn test_nonexistent_config_path() {
     let output = cargo_bin()
-        .arg("--config=/nonexistent/path/to/config.yml")
+        .args(["-c", "/nonexistent/path/to/config.yml"])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -119,12 +137,22 @@ fn test_nonexistent_config_path() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Installer mode: init subcommand
+// ---------------------------------------------------------------------------
+
 #[test]
 fn test_init_creates_file() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let target = dir.path().join("my_config.yml");
     let output = cargo_bin()
-        .args(["init", "--config-path", target.to_str().unwrap()])
+        .args([
+            "init",
+            "--config-path",
+            target.to_str().unwrap(),
+            "--alias",
+            "my-tool",
+        ])
         .output()
         .expect("failed to run cargo run");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -144,7 +172,13 @@ fn test_init_refuses_overwrite() {
     let target = dir.path().join("existing.yml");
     std::fs::write(&target, "already here").unwrap();
     let output = cargo_bin()
-        .args(["init", "--config-path", target.to_str().unwrap()])
+        .args([
+            "init",
+            "--config-path",
+            target.to_str().unwrap(),
+            "--alias",
+            "my-tool",
+        ])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -152,6 +186,10 @@ fn test_init_refuses_overwrite() {
         "expected init to fail when file already exists"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Alias mode: environment variable substitution
+// ---------------------------------------------------------------------------
 
 #[test]
 fn test_env_var_replacement() {
@@ -172,7 +210,8 @@ commands:
     let output = cargo_bin()
         .env("RING_TEST_GREETING", "Howdy")
         .args([
-            &format!("--config={}", config_path.to_str().unwrap()),
+            "-c",
+            config_path.to_str().unwrap(),
             "greet",
         ])
         .output()
@@ -185,6 +224,10 @@ commands:
         "expected 'Howdy' in stdout:\n{stdout}\nstderr:\n{stderr}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Installer mode: alias install helpers
+// ---------------------------------------------------------------------------
 
 #[test]
 fn test_init_alias_appends_to_shell_config() {

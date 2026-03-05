@@ -49,10 +49,17 @@ pub fn add_subcommands_to_cli(
     updated_subcommand
 }
 
-pub fn build_cli_from_configs(configs: &[Configuration]) -> clap::Command {
+/// Build the CLI for alias mode. Takes a single `Configuration` and registers
+/// its commands as top-level subcommands. Adds `--quiet`, `--verbose`, and
+/// `--color` flags. Includes the `refresh-configuration` built-in subcommand.
+///
+/// The `--config` / `--base-dir` flags are intentionally absent here: in alias
+/// mode the config path is baked into the shell alias via `-c <path>` and
+/// parsed before clap sees the argument list.
+pub fn build_cli(config: &Configuration) -> clap::Command {
     let mut app = clap::Command::new("ring-cli")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("Ring CLI Tool powered by YAML configurations")
+        .about(config.description.to_owned())
         .arg(
             clap::Arg::new("quiet")
                 .short('q')
@@ -68,31 +75,55 @@ pub fn build_cli_from_configs(configs: &[Configuration]) -> clap::Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
-            clap::Arg::new("config")
-                .short('c')
-                .long("config")
-                .value_name("PATH")
-                .help("Path to a custom configuration file or directory"),
-        )
-        .arg(
-            clap::Arg::new("base_dir")
-                .short('b')
-                .long("base-dir")
-                .value_name("PATH")
-                .help("Base directory for relative paths"),
+            clap::Arg::new("color")
+                .long("color")
+                .value_name("WHEN")
+                .help("Color output")
+                .value_parser(["auto", "always", "never"])
+                .default_value("auto"),
         );
-    for config in configs {
-        for (cmd_name, cmd) in &config.commands {
-            let mut cmd_subcommand =
-                clap::Command::new(cmd_name.to_owned()).about(cmd.description.to_owned());
-            for flag in &cmd.flags {
-                cmd_subcommand = cmd_subcommand.arg(build_arg(flag));
-            }
-            cmd_subcommand = add_subcommands_to_cli(cmd, cmd_subcommand);
-            app = app.subcommand(cmd_subcommand);
+
+    for (cmd_name, cmd) in &config.commands {
+        let mut cmd_subcommand =
+            clap::Command::new(cmd_name.to_owned()).about(cmd.description.to_owned());
+        for flag in &cmd.flags {
+            cmd_subcommand = cmd_subcommand.arg(build_arg(flag));
         }
+        cmd_subcommand = add_subcommands_to_cli(cmd, cmd_subcommand);
+        app = app.subcommand(cmd_subcommand);
     }
+
+    app = app.subcommand(
+        clap::Command::new("refresh-configuration")
+            .about("Re-read and trust updated configuration"),
+    );
+
     app
+}
+
+/// Build the CLI for installer mode (`ring-cli` binary direct invocation).
+/// Exposes only the `init` subcommand with `--alias` and `--config-path` flags.
+pub fn build_ring_cli() -> clap::Command {
+    clap::Command::new("ring-cli")
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("CLI generator from YAML configurations")
+        .subcommand(
+            clap::Command::new("init")
+                .about("Create a new configuration and install as a shell alias")
+                .arg(
+                    clap::Arg::new("config-path")
+                        .long("config-path")
+                        .value_name("PATH")
+                        .help("Path for the configuration file"),
+                )
+                .arg(
+                    clap::Arg::new("alias")
+                        .long("alias")
+                        .value_name("NAME")
+                        .help("Shell alias name to install")
+                        .required(true),
+                ),
+        )
 }
 
 fn run_shell_commands(
@@ -256,7 +287,7 @@ mod tests {
     #[test]
     fn test_build_cli_has_config_subcommand() {
         let config = make_test_config();
-        let app = build_cli_from_configs(&[config]);
+        let app = build_cli(&config);
         let matches = app
             .try_get_matches_from(["ring-cli", "greet", "--name", "Alice"])
             .expect("should parse");
@@ -267,7 +298,12 @@ mod tests {
 
     #[test]
     fn test_build_cli_quiet_and_verbose_flags() {
-        let app = build_cli_from_configs(&[]);
+        let empty_config = Configuration {
+            version: "2.0".to_string(),
+            description: "Empty".to_string(),
+            commands: HashMap::new(),
+        };
+        let app = build_cli(&empty_config);
         let matches = app
             .try_get_matches_from(["ring-cli", "-q", "-v"])
             .expect("should parse");
@@ -302,7 +338,7 @@ mod tests {
             description: "Nested CLI".to_string(),
             commands,
         };
-        let app = build_cli_from_configs(&[config]);
+        let app = build_cli(&config);
         let matches = app
             .try_get_matches_from(["ring-cli", "db", "migrate"])
             .expect("should parse nested subcommands");
@@ -328,5 +364,37 @@ mod tests {
             .expect("should parse");
         let flag_values = extract_flag_values(&flags, &matches);
         assert_eq!(flag_values.get("name").map(String::as_str), Some("Bob"));
+    }
+
+    #[test]
+    fn test_build_ring_cli_has_init() {
+        let app = build_ring_cli();
+        let matches = app
+            .try_get_matches_from(["ring-cli", "init", "--alias", "my-tool"])
+            .expect("should parse");
+        let init_matches = matches.subcommand_matches("init").expect("init subcommand");
+        let alias = init_matches.get_one::<String>("alias").expect("alias flag");
+        assert_eq!(alias, "my-tool");
+    }
+
+    #[test]
+    fn test_build_cli_has_refresh_configuration() {
+        let config = make_test_config();
+        let app = build_cli(&config);
+        let matches = app
+            .try_get_matches_from(["ring-cli", "refresh-configuration"])
+            .expect("should parse");
+        assert!(matches.subcommand_matches("refresh-configuration").is_some());
+    }
+
+    #[test]
+    fn test_build_cli_color_flag() {
+        let config = make_test_config();
+        let app = build_cli(&config);
+        let matches = app
+            .try_get_matches_from(["ring-cli", "--color=never"])
+            .expect("should parse");
+        let color = matches.get_one::<String>("color").expect("color flag");
+        assert_eq!(color, "never");
     }
 }
