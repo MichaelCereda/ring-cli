@@ -167,23 +167,28 @@ fn test_init_creates_file() {
 }
 
 #[test]
-fn test_init_refuses_overwrite() {
+fn test_init_existing_config_caches_it() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let target = dir.path().join("existing.yml");
-    std::fs::write(&target, "already here").unwrap();
+    let yaml = r#"version: "2.0"
+description: "Existing CLI"
+commands:
+  hello:
+    description: "Say hello"
+    flags: []
+    cmd:
+      run:
+        - "echo hello"
+"#;
+    std::fs::write(&target, yaml).unwrap();
     let output = cargo_bin()
-        .args([
-            "init",
-            "--config-path",
-            target.to_str().unwrap(),
-            "--alias",
-            "my-tool",
-        ])
+        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "existing-test"])
         .output()
-        .expect("failed to run cargo run");
+        .expect("failed to run");
     assert!(
-        !output.status.success(),
-        "expected init to fail when file already exists"
+        output.status.success(),
+        "init with existing valid config should succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
