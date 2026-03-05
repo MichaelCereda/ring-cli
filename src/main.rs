@@ -316,6 +316,28 @@ fn handle_refresh_configuration(alias_name: &str) -> Result<(), anyhow::Error> {
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
+    // Handle completion generation (called by shell hooks installed during init)
+    if let Some(pos) = args.iter().position(|a| a == "--generate-completions") {
+        let shell_name = args
+            .get(pos + 1)
+            .ok_or_else(|| anyhow::anyhow!("Missing shell name after --generate-completions"))?;
+        let alias_name = args
+            .get(pos + 2)
+            .ok_or_else(|| anyhow::anyhow!("Missing alias name after --generate-completions"))?;
+
+        let shell: clap_complete::Shell = shell_name
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Unknown shell: {shell_name}"))?;
+
+        let (config_content, _metadata) = cache::load_trusted_config(alias_name)?;
+        let config: models::Configuration = serde_saphyr::from_str(&config_content)
+            .map_err(|e| anyhow::anyhow!("Cached config invalid: {e}"))?;
+
+        let mut cmd = cli::build_cli(&config);
+        clap_complete::generate(shell, &mut cmd, alias_name.as_str(), &mut std::io::stdout());
+        return Ok(());
+    }
+
     // Detect config path (alias bakes in -c /path or --config=path).
     // We find the config argument first, then strip it from the arg list
     // before handing the rest to clap so that clap never sees --config.
