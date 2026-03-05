@@ -19,16 +19,29 @@ enum ShellKind {
     PowerShell,
 }
 
+fn validate_alias_name(name: &str) -> Result<(), anyhow::Error> {
+    if name.is_empty() {
+        anyhow::bail!("Alias name cannot be empty");
+    }
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        anyhow::bail!(
+            "Alias name '{}' contains invalid characters. Only alphanumeric, '-', and '_' are allowed.",
+            name
+        );
+    }
+    Ok(())
+}
+
 fn alias_line_bash_zsh(alias_name: &str, config_path: &str) -> String {
-    format!("alias {alias_name}='ring-cli -c {config_path}' # ring-cli")
+    format!("alias {alias_name}='ring-cli -c \"{config_path}\"' # ring-cli")
 }
 
 fn alias_line_fish(alias_name: &str, config_path: &str) -> String {
-    format!("alias {alias_name} 'ring-cli -c {config_path}' # ring-cli")
+    format!("alias {alias_name} 'ring-cli -c \"{config_path}\"' # ring-cli")
 }
 
 fn alias_line_powershell(alias_name: &str, config_path: &str) -> String {
-    format!("function {alias_name} {{ ring-cli -c {config_path} @args }} # ring-cli")
+    format!("function {alias_name} {{ ring-cli -c \"{config_path}\" @args }} # ring-cli")
 }
 
 fn alias_exists(file_content: &str, alias_name: &str, kind: ShellKind) -> bool {
@@ -87,6 +100,7 @@ fn detect_shell_configs() -> Vec<ShellConfig> {
 }
 
 fn install_alias(alias_name: &str, config_abs_path: &str) -> Result<(), anyhow::Error> {
+    validate_alias_name(alias_name)?;
     let shells = detect_shell_configs();
     if shells.is_empty() {
         eprintln!("Warning: No shell config files found. Add the alias manually:");
@@ -261,19 +275,19 @@ mod tests {
     #[test]
     fn test_bash_alias_line() {
         let line = alias_line_bash_zsh("my-tool", "/home/user/config.yml");
-        assert_eq!(line, "alias my-tool='ring-cli -c /home/user/config.yml' # ring-cli");
+        assert_eq!(line, "alias my-tool='ring-cli -c \"/home/user/config.yml\"' # ring-cli");
     }
 
     #[test]
     fn test_fish_alias_line() {
         let line = alias_line_fish("my-tool", "/home/user/config.yml");
-        assert_eq!(line, "alias my-tool 'ring-cli -c /home/user/config.yml' # ring-cli");
+        assert_eq!(line, "alias my-tool 'ring-cli -c \"/home/user/config.yml\"' # ring-cli");
     }
 
     #[test]
     fn test_powershell_alias_line() {
         let line = alias_line_powershell("my-tool", "/home/user/config.yml");
-        assert_eq!(line, "function my-tool { ring-cli -c /home/user/config.yml @args } # ring-cli");
+        assert_eq!(line, "function my-tool { ring-cli -c \"/home/user/config.yml\" @args } # ring-cli");
     }
 
     #[test]
@@ -295,5 +309,20 @@ mod tests {
         let content = "function my-tool { ring-cli -c /old/path @args } # ring-cli\n";
         assert!(alias_exists(content, "my-tool", ShellKind::PowerShell));
         assert!(!alias_exists(content, "other-tool", ShellKind::PowerShell));
+    }
+
+    #[test]
+    fn test_validate_alias_name_valid() {
+        assert!(validate_alias_name("my-tool").is_ok());
+        assert!(validate_alias_name("my_tool").is_ok());
+        assert!(validate_alias_name("mytool123").is_ok());
+    }
+
+    #[test]
+    fn test_validate_alias_name_invalid() {
+        assert!(validate_alias_name("").is_err());
+        assert!(validate_alias_name("my tool").is_err());
+        assert!(validate_alias_name("my;tool").is_err());
+        assert!(validate_alias_name("my'tool").is_err());
     }
 }
