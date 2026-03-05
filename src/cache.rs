@@ -2,15 +2,24 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 
-/// Metadata stored alongside a cached alias configuration.
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AliasMetadata {
+/// One entry in the alias metadata — corresponds to a single config file.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct ConfigEntry {
+    /// The `name` field from the configuration YAML.
+    pub name: String,
     /// Absolute path to the original source configuration file.
     pub source_path: String,
     /// SHA-256 hex digest of the configuration content at trust time.
     pub hash: String,
     /// Unix timestamp (seconds) when the configuration was trusted.
     pub trusted_at: String,
+}
+
+/// Metadata stored alongside all cached configs for one alias.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct AliasMetadata {
+    /// All config entries registered for this alias.
+    pub configs: Vec<ConfigEntry>,
 }
 
 /// Returns the directory that holds all cached alias directories.
@@ -59,46 +68,64 @@ pub fn compute_hash(content: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// Saves a trusted configuration to the local cache.
+/// Saves one or more trusted configurations to the local cache.
 ///
-/// Creates `~/.ring-cli/aliases/<alias_name>/config.yml` with the raw
-/// configuration content and `metadata.json` with the source path, hash,
-/// and trust timestamp.
+/// Each element of `configs` is `(name, source_path, content)`.  The content
+/// is written to `~/.ring-cli/aliases/<alias_name>/<name>.yml` and a combined
+/// `metadata.json` records the source path, hash, and trust timestamp for
+/// every entry.
 ///
 /// # Errors
 ///
 /// Returns an error if the cache directory cannot be created or if any
 /// file write fails.
-pub fn save_trusted_config(
+pub fn save_trusted_configs(
     alias_name: &str,
-    source_path: &str,
-    config_content: &str,
+    configs: &[(String, String, String)], // (name, source_path, content)
 ) -> Result<(), anyhow::Error> {
     let dir = alias_dir(alias_name);
     fs::create_dir_all(&dir)?;
-    fs::write(dir.join("config.yml"), config_content)?;
-    let metadata = AliasMetadata {
-        source_path: source_path.to_string(),
-        hash: compute_hash(config_content),
-        trusted_at: chrono_free_timestamp(),
-    };
+
+    let mut entries = Vec::new();
+    for (name, source_path, content) in configs {
+        fs::write(dir.join(format!("{name}.yml")), content)?;
+        entries.push(ConfigEntry {
+            name: name.clone(),
+            source_path: source_path.clone(),
+            hash: compute_hash(content),
+            trusted_at: chrono_free_timestamp(),
+        });
+    }
+
+    let metadata = AliasMetadata { configs: entries };
     let json = serde_json::to_string_pretty(&metadata)?;
     fs::write(dir.join("metadata.json"), json)?;
     Ok(())
 }
 
-/// Loads a previously cached configuration and its metadata.
+/// Loads all previously cached configurations and their metadata for an alias.
+///
+/// Returns `(contents, metadata)` where `contents` is the raw YAML for each
+/// config in the same order as `metadata.configs`.
 ///
 /// # Errors
 ///
 /// Returns an error if the cache directory does not exist, any file is
 /// unreadable, or the metadata JSON is malformed.
-pub fn load_trusted_config(alias_name: &str) -> Result<(String, AliasMetadata), anyhow::Error> {
+pub fn load_trusted_configs(
+    alias_name: &str,
+) -> Result<(Vec<String>, AliasMetadata), anyhow::Error> {
     let dir = alias_dir(alias_name);
-    let config = fs::read_to_string(dir.join("config.yml"))?;
     let metadata_str = fs::read_to_string(dir.join("metadata.json"))?;
     let metadata: AliasMetadata = serde_json::from_str(&metadata_str)?;
-    Ok((config, metadata))
+
+    let mut contents = Vec::new();
+    for entry in &metadata.configs {
+        let content = fs::read_to_string(dir.join(format!("{}.yml", entry.name)))?;
+        contents.push(content);
+    }
+
+    Ok((contents, metadata))
 }
 
 /// Returns the current Unix time as a decimal string without pulling in chrono.
@@ -130,29 +157,54 @@ mod tests {
     }
 
     #[test]
-    fn test_save_and_load_trusted_config() {
+    fn test_save_and_load_trusted_configs() {
         let dir = tempfile::TempDir::new().unwrap();
+
+        // Simulate what save_trusted_configs does but in a temp dir by writing
+        // directly so we can control the alias_dir path.
         let alias_path = dir.path().join("test-alias");
         fs::create_dir_all(&alias_path).unwrap();
 
-        let content = "version: \"2.0\"\ndescription: \"test\"";
-        fs::write(alias_path.join("config.yml"), content).unwrap();
-        let metadata = AliasMetadata {
-            source_path: "/tmp/test.yml".to_string(),
-            hash: compute_hash(content),
-            trusted_at: "12345".to_string(),
-        };
+        let content_a = "version: \"2.0\"\nname: \"alpha\"\ndescription: \"alpha config\"";
+        let content_b = "version: \"2.0\"\nname: \"beta\"\ndescription: \"beta config\"";
+
+        fs::write(alias_path.join("alpha.yml"), content_a).unwrap();
+        fs::write(alias_path.join("beta.yml"), content_b).unwrap();
+
+        let entries = vec![
+            ConfigEntry {
+                name: "alpha".to_string(),
+                source_path: "/tmp/alpha.yml".to_string(),
+                hash: compute_hash(content_a),
+                trusted_at: "12345".to_string(),
+            },
+            ConfigEntry {
+                name: "beta".to_string(),
+                source_path: "/tmp/beta.yml".to_string(),
+                hash: compute_hash(content_b),
+                trusted_at: "12345".to_string(),
+            },
+        ];
+        let metadata = AliasMetadata { configs: entries };
         let json = serde_json::to_string_pretty(&metadata).unwrap();
         fs::write(alias_path.join("metadata.json"), json).unwrap();
 
-        let loaded_config = fs::read_to_string(alias_path.join("config.yml")).unwrap();
+        // Verify round-trip by reading back manually
+        let loaded_a = fs::read_to_string(alias_path.join("alpha.yml")).unwrap();
+        let loaded_b = fs::read_to_string(alias_path.join("beta.yml")).unwrap();
         let loaded_meta: AliasMetadata = serde_json::from_str(
             &fs::read_to_string(alias_path.join("metadata.json")).unwrap(),
         )
         .unwrap();
 
-        assert_eq!(loaded_config, content);
-        assert_eq!(loaded_meta.hash, compute_hash(content));
-        assert_eq!(loaded_meta.source_path, "/tmp/test.yml");
+        assert_eq!(loaded_a, content_a);
+        assert_eq!(loaded_b, content_b);
+        assert_eq!(loaded_meta.configs.len(), 2);
+        assert_eq!(loaded_meta.configs[0].name, "alpha");
+        assert_eq!(loaded_meta.configs[0].hash, compute_hash(content_a));
+        assert_eq!(loaded_meta.configs[0].source_path, "/tmp/alpha.yml");
+        assert_eq!(loaded_meta.configs[1].name, "beta");
+        assert_eq!(loaded_meta.configs[1].hash, compute_hash(content_b));
+        assert_eq!(loaded_meta.configs[1].source_path, "/tmp/beta.yml");
     }
 }

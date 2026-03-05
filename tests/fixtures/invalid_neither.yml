@@ -1,4 +1,5 @@
 version: "2.0"
+name: "invalid"
 description: "Invalid config"
 commands:
   bad:

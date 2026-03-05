@@ -47,6 +47,7 @@ fn test_version_output() {
 
 // ---------------------------------------------------------------------------
 // Alias mode: -c <path> is stripped before clap sees it
+// Commands are now nested under the config's `name` subcommand.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -55,6 +56,7 @@ fn test_load_fixture_config_and_run_command() {
         .args([
             "-c",
             "tests/fixtures/valid_config.yml",
+            "test",
             "greet",
             "--name",
             "World",
@@ -72,7 +74,7 @@ fn test_load_fixture_config_and_run_command() {
 #[test]
 fn test_multi_step_command() {
     let output = cargo_bin()
-        .args(["-c", "tests/fixtures/valid_config.yml", "multi"])
+        .args(["-c", "tests/fixtures/valid_config.yml", "test", "multi"])
         .output()
         .expect("failed to run cargo run");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -94,7 +96,7 @@ fn test_multi_step_command() {
 #[test]
 fn test_invalid_config_both_cmd_and_subcommands() {
     let output = cargo_bin()
-        .args(["-c", "tests/fixtures/invalid_both.yml", "bad"])
+        .args(["-c", "tests/fixtures/invalid_both.yml", "invalid", "bad"])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -111,7 +113,7 @@ fn test_invalid_config_both_cmd_and_subcommands() {
 #[test]
 fn test_invalid_config_neither_cmd_nor_subcommands() {
     let output = cargo_bin()
-        .args(["-c", "tests/fixtures/invalid_neither.yml", "bad"])
+        .args(["-c", "tests/fixtures/invalid_neither.yml", "invalid", "bad"])
         .output()
         .expect("failed to run cargo run");
     assert!(
@@ -171,6 +173,7 @@ fn test_init_existing_config_caches_it() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let target = dir.path().join("existing.yml");
     let yaml = r#"version: "2.0"
+name: "existing"
 description: "Existing CLI"
 commands:
   hello:
@@ -201,6 +204,7 @@ fn test_env_var_replacement() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let config_path = dir.path().join("env_test.yml");
     let yaml = r#"version: "2.0"
+name: "envtest"
 description: "Env test CLI"
 commands:
   greet:
@@ -217,6 +221,7 @@ commands:
         .args([
             "-c",
             config_path.to_str().unwrap(),
+            "envtest",
             "greet",
         ])
         .output()
@@ -296,15 +301,15 @@ fn test_alias_mode_help_shows_commands() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(combined.contains("greet"), "missing 'greet' in help:\n{combined}");
-    assert!(combined.contains("multi"), "missing 'multi' in help:\n{combined}");
+    // Config has name: "test", so the "test" subcommand should appear in help
+    assert!(combined.contains("test"), "missing 'test' config subcommand in help:\n{combined}");
     assert!(combined.contains("refresh-configuration"), "missing 'refresh-configuration':\n{combined}");
 }
 
 #[test]
 fn test_no_ansi_when_piped() {
     let output = cargo_bin()
-        .args(["-c", "tests/fixtures/valid_config.yml", "greet", "--name", "Test"])
+        .args(["-c", "tests/fixtures/valid_config.yml", "test", "greet", "--name", "Test"])
         .output()
         .expect("failed to run");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -330,7 +335,7 @@ fn test_no_color_env_disables_ansi() {
 fn test_empty_config_shows_help() {
     let dir = tempfile::TempDir::new().expect("tempdir");
     let config_path = dir.path().join("empty.yml");
-    let yaml = "version: \"2.0\"\ndescription: \"Empty CLI\"\ncommands: {}\n";
+    let yaml = "version: \"2.0\"\nname: \"empty\"\ndescription: \"Empty CLI\"\ncommands: {}\n";
     std::fs::write(&config_path, yaml).unwrap();
     let output = cargo_bin()
         .args(["-c", config_path.to_str().unwrap(), "--help"])
@@ -341,7 +346,7 @@ fn test_empty_config_shows_help() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(combined.contains("Empty CLI"), "expected description in help:\n{combined}");
+    assert!(combined.contains("empty"), "expected config name in help:\n{combined}");
     assert!(combined.contains("refresh-configuration"), "should still show refresh-configuration:\n{combined}");
 }
 
@@ -363,7 +368,15 @@ fn test_alias_mode_version() {
 #[test]
 fn test_color_flag_never() {
     let output = cargo_bin()
-        .args(["-c", "tests/fixtures/valid_config.yml", "--color=never", "greet", "--name", "Test"])
+        .args([
+            "-c",
+            "tests/fixtures/valid_config.yml",
+            "--color=never",
+            "test",
+            "greet",
+            "--name",
+            "Test",
+        ])
         .output()
         .expect("failed to run");
     let stdout = String::from_utf8_lossy(&output.stdout);

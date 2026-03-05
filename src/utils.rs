@@ -115,6 +115,7 @@ mod tests {
         let file_path = dir.path().join("test.yml");
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "Temp CLI"
 commands:
   run:
@@ -152,6 +153,7 @@ commands:
         let file_path = dir.path().join("invalid.yml");
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "Invalid"
 commands:
   bad:

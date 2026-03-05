@@ -6,6 +6,7 @@ use crate::errors::RingError;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {
     pub version: String,
+    pub name: String,
     pub description: String,
     pub commands: HashMap<String, Command>,
 }
@@ -79,6 +80,7 @@ mod tests {
     fn test_deserialize_run_command() {
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "Test CLI"
 commands:
   greet:
@@ -102,6 +104,7 @@ commands:
     fn test_deserialize_http_command() {
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "HTTP CLI"
 commands:
   fetch:
@@ -217,6 +220,7 @@ commands:
     fn test_deserialize_flags_without_short() {
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "No short flag"
 commands:
   run:
@@ -237,6 +241,7 @@ commands:
     fn test_deserialize_v2_config_no_slug() {
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "My CLI"
 commands:
   greet:
@@ -251,6 +256,7 @@ commands:
 "#;
         let config: Configuration = serde_saphyr::from_str(yaml).expect("valid v2 YAML");
         assert_eq!(config.version, "2.0");
+        assert_eq!(config.name, "test");
         assert_eq!(config.description, "My CLI");
         assert!(config.commands.contains_key("greet"));
     }
@@ -259,6 +265,7 @@ commands:
     fn test_empty_commands_map() {
         let yaml = r#"
 version: "2.0"
+name: "test"
 description: "Empty"
 commands: {}
 "#;
