@@ -127,7 +127,7 @@ fn install_alias(alias_name: &str, config_abs_path: &str) -> Result<(), anyhow::
     Ok(())
 }
 
-fn handle_init(path: Option<&String>) -> Result<(), anyhow::Error> {
+fn handle_init(path: Option<&String>, alias: Option<&String>) -> Result<(), anyhow::Error> {
     let target = if let Some(p) = path {
         PathBuf::from(p)
     } else {
@@ -202,14 +202,22 @@ commands:
 
     fs::write(&target, template)?;
     println!("Created configuration at: {}", target.display());
+
+    if let Some(alias_name) = alias {
+        let abs_path = fs::canonicalize(&target)?;
+        let abs_path_str = abs_path.display().to_string();
+        install_alias(alias_name, &abs_path_str)?;
+    }
+
     Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 2 && args[1] == "init" {
-        let path = args.iter().position(|a| a == "--config-path").and_then(|i| args.get(i + 1));
-        return handle_init(path);
+        let init_path = args.iter().position(|a| a == "--config-path").and_then(|i| args.get(i + 1));
+        let alias = args.iter().position(|a| a == "--alias").and_then(|i| args.get(i + 1));
+        return handle_init(init_path, alias);
     }
 
     let config_path = args.iter()
