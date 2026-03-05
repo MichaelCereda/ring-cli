@@ -1,6 +1,7 @@
 mod cli;
 mod errors;
 mod models;
+mod style;
 mod utils;
 
 use std::fs;
