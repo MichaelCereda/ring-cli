@@ -12,6 +12,34 @@ fn default_config_dir() -> PathBuf {
         .join(".ring-cli/configurations")
 }
 
+#[derive(Clone, Copy)]
+enum ShellKind {
+    BashZsh,
+    Fish,
+    PowerShell,
+}
+
+fn alias_line_bash_zsh(alias_name: &str, config_path: &str) -> String {
+    format!("alias {alias_name}='ring-cli -c {config_path}' # ring-cli")
+}
+
+fn alias_line_fish(alias_name: &str, config_path: &str) -> String {
+    format!("alias {alias_name} 'ring-cli -c {config_path}' # ring-cli")
+}
+
+fn alias_line_powershell(alias_name: &str, config_path: &str) -> String {
+    format!("function {alias_name} {{ ring-cli -c {config_path} @args }} # ring-cli")
+}
+
+fn alias_exists(file_content: &str, alias_name: &str, kind: ShellKind) -> bool {
+    let pattern = match kind {
+        ShellKind::BashZsh => format!("alias {alias_name}="),
+        ShellKind::Fish => format!("alias {alias_name} "),
+        ShellKind::PowerShell => format!("function {alias_name}"),
+    };
+    file_content.contains(&pattern)
+}
+
 fn handle_init(path: Option<&String>) -> Result<(), anyhow::Error> {
     let target = if let Some(p) = path {
         PathBuf::from(p)
@@ -129,4 +157,48 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bash_alias_line() {
+        let line = alias_line_bash_zsh("my-tool", "/home/user/config.yml");
+        assert_eq!(line, "alias my-tool='ring-cli -c /home/user/config.yml' # ring-cli");
+    }
+
+    #[test]
+    fn test_fish_alias_line() {
+        let line = alias_line_fish("my-tool", "/home/user/config.yml");
+        assert_eq!(line, "alias my-tool 'ring-cli -c /home/user/config.yml' # ring-cli");
+    }
+
+    #[test]
+    fn test_powershell_alias_line() {
+        let line = alias_line_powershell("my-tool", "/home/user/config.yml");
+        assert_eq!(line, "function my-tool { ring-cli -c /home/user/config.yml @args } # ring-cli");
+    }
+
+    #[test]
+    fn test_alias_already_exists_bash() {
+        let content = "# my stuff\nalias my-tool='ring-cli -c /old/path' # ring-cli\n";
+        assert!(alias_exists(content, "my-tool", ShellKind::BashZsh));
+        assert!(!alias_exists(content, "other-tool", ShellKind::BashZsh));
+    }
+
+    #[test]
+    fn test_alias_already_exists_fish() {
+        let content = "alias my-tool 'ring-cli -c /old/path' # ring-cli\n";
+        assert!(alias_exists(content, "my-tool", ShellKind::Fish));
+        assert!(!alias_exists(content, "other-tool", ShellKind::Fish));
+    }
+
+    #[test]
+    fn test_alias_already_exists_powershell() {
+        let content = "function my-tool { ring-cli -c /old/path @args } # ring-cli\n";
+        assert!(alias_exists(content, "my-tool", ShellKind::PowerShell));
+        assert!(!alias_exists(content, "other-tool", ShellKind::PowerShell));
+    }
 }
