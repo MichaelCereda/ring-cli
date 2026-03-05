@@ -1,16 +1,16 @@
-use super::models::{Configuration};
+use std::collections::HashMap;
+use std::fs;
 
-use dirs;
-use std::{fs};
+use crate::errors::RingError;
+use crate::models::Configuration;
 
-pub fn replace_placeholders<'a>(
+pub fn replace_placeholders(
     template: &str,
-    flags: &'a clap::ArgMatches<'a>,
+    flag_values: &HashMap<String, String>,
     verbose: bool,
 ) -> String {
     let mut result = template.to_string();
-    for (flag_name, values) in flags.args.iter() {
-        let flag_value = values.vals[0].to_str().unwrap_or_default();
+    for (flag_name, flag_value) in flag_values {
         if verbose {
             println!("Replacing placeholder for {}: {}", flag_name, flag_value);
         }
@@ -19,43 +19,97 @@ pub fn replace_placeholders<'a>(
     result
 }
 
+pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, RingError> {
+    let mut result = template.to_string();
+    while let Some(start) = result.find("${{env.") {
+        let rest = &result[start + 7..];
+        let end = rest.find("}}").ok_or_else(|| RingError::Config(
+            format!("Unclosed placeholder starting at position {}", start),
+        ))?;
+        let var_name = &rest[..end];
+        let var_value = std::env::var(var_name).map_err(|_| RingError::EnvVar {
+            name: var_name.to_string(),
+        })?;
+        if verbose {
+            println!("Replacing env var {}: {}", var_name, var_value);
+        }
+        result = result.replace(&format!("${{{{env.{}}}}}", var_name), &var_value);
+    }
+    Ok(result)
+}
+
 pub fn load_configurations(
     config_path: Option<&str>,
-) -> Result<Vec<Configuration>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Configuration>, RingError> {
     let mut configurations = Vec::new();
 
-    // Set the default config directory to ~/.ring-cli/configurations
     let default_config_dir = dirs::home_dir()
-        .ok_or("Unable to determine home directory")?
+        .ok_or_else(|| RingError::Config("Unable to determine home directory".to_string()))?
         .join(".ring-cli/configurations");
 
-    // If a custom config path is provided, use it. Otherwise, use the default directory.
+    let using_default = config_path.is_none();
     let config_dir = if let Some(path) = config_path {
         std::path::PathBuf::from(path)
     } else {
         default_config_dir
     };
 
+    // When the default directory simply doesn't exist yet, return empty configs
+    // rather than an error so that `--help` and `init` still work.
+    if using_default && !config_dir.exists() {
+        return Ok(configurations);
+    }
+
     if config_dir.is_file() {
-        let content = fs::read_to_string(&config_dir)?;
-        let config: Configuration = serde_yaml::from_str(&content)?;
+        let path_str = config_dir.display().to_string();
+        let content = fs::read_to_string(&config_dir).map_err(|e| RingError::Io {
+            path: path_str.clone(),
+            source: e,
+        })?;
+        let config: Configuration = serde_yml::from_str(&content).map_err(|e| {
+            RingError::YamlParse {
+                path: path_str,
+                source: e,
+            }
+        })?;
         configurations.push(config);
     } else if config_dir.is_dir() {
-        let paths = fs::read_dir(config_dir)?;
-        for path in paths {
-            let content = fs::read_to_string(path?.path())?;
-            let config: Configuration = serde_yaml::from_str(&content)?;
+        let paths = fs::read_dir(&config_dir).map_err(|e| RingError::Io {
+            path: config_dir.display().to_string(),
+            source: e,
+        })?;
+        for entry in paths {
+            let entry = entry.map_err(|e| RingError::Io {
+                path: config_dir.display().to_string(),
+                source: e,
+            })?;
+            let path = entry.path();
+            match path.extension().and_then(|e| e.to_str()) {
+                Some("yml") | Some("yaml") => {}
+                _ => continue,
+            }
+            let path_str = path.display().to_string();
+            let content = fs::read_to_string(&path).map_err(|e| RingError::Io {
+                path: path_str.clone(),
+                source: e,
+            })?;
+            let config: Configuration =
+                serde_yml::from_str(&content).map_err(|e| RingError::YamlParse {
+                    path: path_str,
+                    source: e,
+                })?;
             configurations.push(config);
         }
     } else {
-        return Err(Box::from(
-            "Provided config path is neither a file nor a directory",
-        ));
+        return Err(RingError::Config(format!(
+            "Config path '{}' is neither a file nor a directory",
+            config_dir.display()
+        )));
     }
 
     for config in &configurations {
-        for (_, cmd) in &config.commands {
-            cmd.validate()?; // Validate each command after loading
+        for (cmd_name, cmd) in &config.commands {
+            cmd.validate(&format!("{} > {}", config.slug, cmd_name))?;
         }
     }
 
