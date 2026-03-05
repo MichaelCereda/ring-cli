@@ -12,3 +12,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 dirs = "6.0"
 thiserror = "2.0"
 anyhow = "1.0"
+
+[dev-dependencies]
+tempfile = "3"

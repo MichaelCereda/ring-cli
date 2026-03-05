@@ -121,3 +121,130 @@ pub fn load_configurations(
 
     Ok(configurations)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_replace_single_placeholder() {
+        let mut flags = HashMap::new();
+        flags.insert("name".to_string(), "Alice".to_string());
+        let result = replace_placeholders("Hello, ${{name}}!", &flags, false);
+        assert_eq!(result, "Hello, Alice!");
+    }
+
+    #[test]
+    fn test_replace_multiple_placeholders() {
+        let mut flags = HashMap::new();
+        flags.insert("first".to_string(), "Hello".to_string());
+        flags.insert("second".to_string(), "World".to_string());
+        let result = replace_placeholders("${{first}}, ${{second}}!", &flags, false);
+        assert_eq!(result, "Hello, World!");
+    }
+
+    #[test]
+    fn test_replace_missing_placeholder_left_as_is() {
+        let flags = HashMap::new();
+        let result = replace_placeholders("Hello, ${{name}}!", &flags, false);
+        assert_eq!(result, "Hello, ${{name}}!");
+    }
+
+    #[test]
+    fn test_replace_env_var() {
+        std::env::set_var("RING_TEST_VAR", "test_value");
+        let result = replace_env_vars("Value: ${{env.RING_TEST_VAR}}", false)
+            .expect("should succeed");
+        assert_eq!(result, "Value: test_value");
+        std::env::remove_var("RING_TEST_VAR");
+    }
+
+    #[test]
+    fn test_replace_env_var_not_set() {
+        std::env::remove_var("RING_TEST_MISSING_VAR");
+        let err = replace_env_vars("Value: ${{env.RING_TEST_MISSING_VAR}}", false)
+            .expect_err("should fail");
+        assert!(err.to_string().contains("RING_TEST_MISSING_VAR"), "error was: {err}");
+    }
+
+    #[test]
+    fn test_load_single_config_file() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file_path = dir.path().join("test.yml");
+        let yaml = r#"
+version: "1.0"
+description: "Temp CLI"
+slug: "tempcli"
+commands:
+  run:
+    description: "Run something"
+    flags: []
+    cmd:
+      run:
+        - "echo hi"
+"#;
+        std::fs::write(&file_path, yaml).unwrap();
+        let configs = load_configurations(Some(file_path.to_str().unwrap()))
+            .expect("should load");
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].slug, "tempcli");
+    }
+
+    #[test]
+    fn test_load_config_directory() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let yaml = |slug: &str| format!(r#"
+version: "1.0"
+description: "CLI {slug}"
+slug: "{slug}"
+commands:
+  run:
+    description: "run"
+    flags: []
+    cmd:
+      run:
+        - "echo {slug}"
+"#);
+        std::fs::write(dir.path().join("a.yml"), yaml("aslug")).unwrap();
+        std::fs::write(dir.path().join("b.yml"), yaml("bslug")).unwrap();
+        std::fs::write(dir.path().join("c.txt"), "not yaml").unwrap();
+
+        let configs = load_configurations(Some(dir.path().to_str().unwrap()))
+            .expect("should load");
+        assert_eq!(configs.len(), 2);
+    }
+
+    #[test]
+    fn test_load_nonexistent_path_errors() {
+        let result = load_configurations(Some("/nonexistent/path/config.yml"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_invalid_yaml_shows_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file_path = dir.path().join("bad.yml");
+        std::fs::write(&file_path, "not: valid: yaml: [unclosed").unwrap();
+        let err = load_configurations(Some(file_path.to_str().unwrap()))
+            .expect_err("should fail");
+        assert!(err.to_string().contains("bad.yml"), "error was: {err}");
+    }
+
+    #[test]
+    fn test_load_validates_configs() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file_path = dir.path().join("invalid.yml");
+        let yaml = r#"
+version: "1.0"
+description: "Invalid"
+slug: "invalid"
+commands:
+  bad:
+    description: "neither cmd nor subcommands"
+    flags: []
+"#;
+        std::fs::write(&file_path, yaml).unwrap();
+        let err = load_configurations(Some(file_path.to_str().unwrap()))
+            .expect_err("should fail validation");
+        assert!(err.to_string().contains("must be present"), "error was: {err}");
+    }
+}
