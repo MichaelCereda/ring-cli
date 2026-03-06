@@ -47,7 +47,7 @@ Each command must have exactly one of `cmd` or `subcommands`, not both.
 src/
   main.rs      — Entry point, alias installation, shell hooks, argument dispatch
   cli.rs       — CLI construction (clap builder API), command execution
-  models.rs    — YAML data structures (Configuration, Command, Flag, CmdType, Http)
+  models.rs    — YAML data structures (Configuration, Command, Flag, CmdType)
   cache.rs     — Trusted config storage (~/.ring-cli/aliases/), SHA-256 hashing
   utils.rs     — Config loading, placeholder/env-var replacement
   style.rs     — Color output (ANSI, NO_COLOR, --color flag)

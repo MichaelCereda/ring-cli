@@ -27,16 +27,6 @@ pub enum RingError {
         stderr: String,
     },
 
-    #[error("{method} {url}: {message}")]
-    Http {
-        method: String,
-        url: String,
-        message: String,
-    },
-
     #[error("Environment variable '{name}' is not set")]
     EnvVar { name: String },
-
-    #[error("Unsupported HTTP method '{0}'")]
-    UnsupportedMethod(String),
 }

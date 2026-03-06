@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::process::Command as ShellCommand;
 
 use crate::errors::RingError;
-use crate::models::{CmdType, Command as RingCommand, Configuration, Http};
+use crate::models::{Command as RingCommand, Configuration};
 use crate::utils::{replace_env_vars, replace_placeholders};
 
 fn extract_flag_values(
@@ -197,58 +197,6 @@ fn run_shell_commands(
     Ok(output_text)
 }
 
-pub async fn execute_http_request(
-    http: &Http,
-    flag_values: &HashMap<String, String>,
-    verbose: bool,
-) -> Result<String, RingError> {
-    let client = reqwest::Client::new();
-
-    let replace = |template: &str| -> Result<String, RingError> {
-        let result = replace_placeholders(template, flag_values, verbose);
-        replace_env_vars(&result, verbose)
-    };
-
-    let url = replace(&http.url)?;
-    let body = if let Some(ref body_content) = http.body {
-        Some(replace(body_content)?)
-    } else {
-        None
-    };
-
-    let request_builder = match http.method.as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url).body(body.unwrap_or_default()),
-        "PUT" => client.put(&url).body(body.unwrap_or_default()),
-        "DELETE" => client.delete(&url),
-        "PATCH" => client.patch(&url).body(body.unwrap_or_default()),
-        "HEAD" => client.head(&url),
-        _ => return Err(RingError::UnsupportedMethod(http.method.clone())),
-    };
-
-    let mut request_with_headers = request_builder;
-    if let Some(header_map) = &http.headers {
-        for (header_name, header_value) in header_map.iter() {
-            let replaced_value = replace(header_value)?;
-            request_with_headers = request_with_headers.header(header_name, replaced_value);
-        }
-    }
-
-    let response = request_with_headers.send().await.map_err(|e| RingError::Http {
-        method: http.method.clone(),
-        url: url.clone(),
-        message: e.to_string(),
-    })?;
-
-    let text = response.text().await.map_err(|e| RingError::Http {
-        method: http.method.clone(),
-        url: url.clone(),
-        message: e.to_string(),
-    })?;
-
-    Ok(text)
-}
-
 pub fn execute_command(
     command: &RingCommand,
     cmd_matches: &clap::ArgMatches,
@@ -262,23 +210,9 @@ pub fn execute_command(
     }
 
     if let Some(actual_cmd) = &command.cmd {
-        match actual_cmd {
-            CmdType::Http { http } => {
-                let rt = tokio::runtime::Runtime::new()
-                    .map_err(|e| RingError::Config(format!("Failed to create async runtime: {}", e)))?;
-                let output = rt.block_on(execute_http_request(http, &flag_values, verbose))?;
-                println!("{}", output);
-            }
-            CmdType::Run { run } => {
-                match run_shell_commands(run, &flag_values, verbose, base_dir) {
-                    Ok(output) => {
-                        if !output.trim().is_empty() {
-                            println!("{}", output);
-                        }
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
+        let output = run_shell_commands(&actual_cmd.run, &flag_values, verbose, base_dir)?;
+        if !output.trim().is_empty() {
+            println!("{}", output);
         }
     }
 
@@ -308,7 +242,7 @@ mod tests {
                     short: Some("n".to_string()),
                     description: "Name of the user".to_string(),
                 }],
-                cmd: Some(CmdType::Run { run: vec!["echo Hello, ${{name}}!".to_string()] }),
+                cmd: Some(CmdType { run: vec!["echo Hello, ${{name}}!".to_string()] }),
                 subcommands: None,
             },
         );
@@ -361,7 +295,7 @@ mod tests {
             RingCommand {
                 description: "Run migrations".to_string(),
                 flags: vec![],
-                cmd: Some(CmdType::Run { run: vec!["echo migrating".to_string()] }),
+                cmd: Some(CmdType { run: vec!["echo migrating".to_string()] }),
                 subcommands: None,
             },
         );

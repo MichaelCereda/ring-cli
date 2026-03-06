@@ -61,19 +61,8 @@ pub struct Flag {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum CmdType {
-    Http { http: Http },
-    Run { run: Vec<String> },
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Http {
-    pub method: String,
-    pub url: String,
-    pub headers: Option<HashMap<String, String>>,
-    #[serde(default)]
-    pub body: Option<String>,
+pub struct CmdType {
+    pub run: Vec<String>,
 }
 
 #[cfg(test)]
@@ -101,39 +90,7 @@ commands:
         let greet = config.commands.get("greet").expect("greet command exists");
         assert_eq!(greet.flags.len(), 1);
         assert_eq!(greet.flags[0].name, "name");
-        assert!(matches!(&greet.cmd, Some(CmdType::Run { run }) if run.len() == 1));
-    }
-
-    #[test]
-    fn test_deserialize_http_command() {
-        let yaml = r#"
-version: "2.0"
-name: "test"
-description: "HTTP CLI"
-commands:
-  fetch:
-    description: "Fetch a URL"
-    flags: []
-    cmd:
-      http:
-        method: "POST"
-        url: "https://example.com/api"
-        headers:
-          Authorization: "Bearer token"
-        body: '{"key":"value"}'
-"#;
-        let config: Configuration = serde_saphyr::from_str(yaml).expect("valid YAML");
-        let fetch = config.commands.get("fetch").expect("fetch command exists");
-        if let Some(CmdType::Http { http }) = &fetch.cmd {
-            assert_eq!(http.method, "POST");
-            assert_eq!(http.url, "https://example.com/api");
-            assert!(http.headers.is_some());
-            let headers = http.headers.as_ref().unwrap();
-            assert_eq!(headers.get("Authorization").map(String::as_str), Some("Bearer token"));
-            assert_eq!(http.body.as_deref(), Some(r#"{"key":"value"}"#));
-        } else {
-            panic!("expected Http CmdType");
-        }
+        assert!(greet.cmd.as_ref().map(|c| c.run.len()) == Some(1));
     }
 
     #[test]
@@ -141,13 +98,13 @@ commands:
         let cmd = Command {
             description: "bad".to_string(),
             flags: vec![],
-            cmd: Some(CmdType::Run { run: vec!["echo hi".to_string()] }),
+            cmd: Some(CmdType { run: vec!["echo hi".to_string()] }),
             subcommands: Some({
                 let mut map = HashMap::new();
                 map.insert("sub".to_string(), Command {
                     description: "sub".to_string(),
                     flags: vec![],
-                    cmd: Some(CmdType::Run { run: vec!["echo sub".to_string()] }),
+                    cmd: Some(CmdType { run: vec!["echo sub".to_string()] }),
                     subcommands: None,
                 });
                 map
@@ -174,7 +131,7 @@ commands:
         let cmd = Command {
             description: "ok".to_string(),
             flags: vec![],
-            cmd: Some(CmdType::Run { run: vec!["echo ok".to_string()] }),
+            cmd: Some(CmdType { run: vec!["echo ok".to_string()] }),
             subcommands: None,
         };
         assert!(cmd.validate("mycli > ok").is_ok());
@@ -185,7 +142,7 @@ commands:
         let inner = Command {
             description: "inner".to_string(),
             flags: vec![],
-            cmd: Some(CmdType::Run { run: vec!["echo inner".to_string()] }),
+            cmd: Some(CmdType { run: vec!["echo inner".to_string()] }),
             subcommands: None,
         };
         let mut subs = HashMap::new();

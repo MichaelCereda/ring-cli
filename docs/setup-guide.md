@@ -98,23 +98,13 @@ commands:
 
     # EXACTLY ONE of `cmd` or `subcommands` must be present. Not both. Not neither.
 
-    # Option A: cmd - a command to execute
+    # Option A: cmd - shell commands to execute
     cmd:
-      # Either `run` (shell commands) or `http` (HTTP request). Not both.
-
       # Shell commands: list of strings executed sequentially via `sh -c`.
       # If any step fails (non-zero exit), execution stops.
       run:
         - "<shell command 1>"
         - "<shell command 2>"
-
-      # OR HTTP request:
-      http:
-        method: "GET"  # GET, POST, PUT, DELETE, PATCH, or HEAD
-        url: "<url>"
-        headers:                    # OPTIONAL: map of header name to value
-          Content-Type: "application/json"
-        body: "<request body>"      # OPTIONAL: only for POST, PUT, PATCH
 
     # Option B: subcommands - nested command tree (arbitrarily deep)
     subcommands:
@@ -128,7 +118,7 @@ commands:
 
 ### Variable Substitution
 
-Inside `run` strings, `http.url`, `http.headers` values, and `http.body`:
+Inside `run` strings:
 
 | Syntax | Meaning | Example |
 |--------|---------|---------|
@@ -267,7 +257,7 @@ Ask or infer:
 For each group of related commands, create one `.yml` file. Use the schema above. Key decisions:
 
 - **Choose `name` carefully** — it becomes the subcommand (`infra <name> <command>`).
-- **Use `run` for shell commands**, `http` for API calls.
+- **Use `run` for shell commands** — for HTTP requests, use `curl`, `wget`, or similar tools.
 - **Use `subcommands` for hierarchy** — e.g., `cloud > aws > deploy`.
 - **Use `flags`** for any user-provided values. Reference them with `${{flag_name}}`.
 - **Use `${{env.VAR}}`** for secrets/tokens — never hardcode them.
@@ -387,7 +377,7 @@ ops db migrate
 ops db backup --output /backups/db-2026-03-05.sql
 ```
 
-### Example B: API Client CLI
+### Example B: API Client CLI (using curl)
 
 **api.yml:**
 ```yaml
@@ -399,22 +389,17 @@ commands:
     description: "Check API health"
     flags: []
     cmd:
-      http:
-        method: "GET"
-        url: "https://api.internal.com/health"
+      run:
+        - "curl -s https://api.internal.com/health"
   users:
     description: "User management"
-    flags: []
     subcommands:
       list:
         description: "List all users"
         flags: []
         cmd:
-          http:
-            method: "GET"
-            url: "https://api.internal.com/users"
-            headers:
-              Authorization: "Bearer ${{env.API_TOKEN}}"
+          run:
+            - "curl -s -H 'Authorization: Bearer ${{env.API_TOKEN}}' https://api.internal.com/users"
       create:
         description: "Create a user"
         flags:
@@ -422,13 +407,8 @@ commands:
             short: "p"
             description: "JSON payload"
         cmd:
-          http:
-            method: "POST"
-            url: "https://api.internal.com/users"
-            headers:
-              Content-Type: "application/json"
-              Authorization: "Bearer ${{env.API_TOKEN}}"
-            body: "${{payload}}"
+          run:
+            - "curl -s -X POST -H 'Content-Type: application/json' -H 'Authorization: Bearer ${{env.API_TOKEN}}' -d '${{payload}}' https://api.internal.com/users"
 ```
 
 **Install:**

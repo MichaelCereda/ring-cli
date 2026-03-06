@@ -177,37 +177,6 @@ commands:
         - "echo Step 3: Done!"
 ```
 
-## HTTP Commands
-
-Execute HTTP requests directly:
-
-```yaml
-commands:
-  status:
-    description: "Check API status"
-    flags: []
-    cmd:
-      http:
-        method: "GET"
-        url: "https://api.example.com/status"
-  create:
-    description: "Create a resource"
-    flags:
-      - name: "data"
-        short: "d"
-        description: "JSON body"
-    cmd:
-      http:
-        method: "POST"
-        url: "https://api.example.com/resources"
-        headers:
-          Content-Type: "application/json"
-          Authorization: "Bearer ${{env.API_TOKEN}}"
-        body: "${{data}}"
-```
-
-Supported methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`.
-
 ## Nested Subcommands
 
 Commands can be nested arbitrarily deep using `subcommands`:
