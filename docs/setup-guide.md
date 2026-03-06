@@ -37,7 +37,7 @@ How to install ring-cli and create configuration files.
 3. **Verify the installation:**
    ```bash
    ring-cli --version
-   # Expected output: ring-cli 2.0.0
+   # Expected output: ring-cli 2.2.0
    ```
 
 4. **If `ring-cli` is not found**, ensure `~/.cargo/bin` is in your `PATH`:
@@ -78,6 +78,10 @@ description: "<what this group does>"
 # If set, every shell command runs with this as its cwd.
 # Supports absolute paths only.
 base-dir: "/absolute/path/to/directory"
+
+# OPTIONAL: Banner text displayed on stderr when the alias is invoked.
+# Suppressed with --quiet / -q.
+banner: "Welcome to my CLI"
 
 # REQUIRED: Map of command names to command definitions.
 # Can be empty: `commands: {}`
@@ -145,6 +149,23 @@ These rules are enforced at parse time. Violating them will cause `ring-cli init
 5. This rule applies recursively to all nested subcommands.
 6. If two config files use the same `name` under one alias, init fails (unless `--warn-only-on-conflict` is passed).
 
+### References File Format
+
+Instead of listing config paths on the command line, create a references file:
+
+```yaml
+# OPTIONAL: Top-level banner (takes priority over per-config banners)
+banner: "Welcome to Infrastructure CLI"
+
+# REQUIRED: List of config file paths, relative to this file's location
+configs:
+  - services.yml
+  - db.yml
+  - monitoring.yml
+```
+
+Use with: `ring-cli init --alias ops --references .ring-cli/references.yml`
+
 ---
 
 ## Part 3: Registering an Alias
@@ -158,7 +179,7 @@ ring-cli init --alias <alias-name> --config-path <path-to-config.yml>
 This does four things:
 1. Reads and validates the YAML config.
 2. Copies it to `~/.ring-cli/aliases/<alias-name>/` with a SHA-256 hash.
-3. Appends a shell alias to all detected shell config files (e.g., `~/.zshrc`).
+3. Appends a shell function to all detected shell config files (e.g., `~/.zshrc`).
 4. Installs tab completion hooks for all detected shells.
 
 ### Multiple Configs Per Alias
@@ -189,12 +210,14 @@ This installs a shell startup hook that checks if source config files have chang
 
 ### Flags Reference
 
-| Flag | Description |
-|------|-------------|
-| `--alias <NAME>` | **Required.** Shell alias name. Alphanumeric, hyphens, underscores only. |
-| `--config-path <PATH>` | Path to a YAML config file. Repeatable. If omitted, creates a default config at `~/.ring-cli/configurations/<alias>.yml`. |
-| `--warn-only-on-conflict` | Downgrade name-conflict errors to warnings. |
-| `--check-for-updates` | Install a shell hook that checks for config changes on terminal startup. |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--alias <NAME>` | | **Required.** Shell alias name. Alphanumeric, hyphens, underscores only. |
+| `--config-path <PATH>` | | Path to a YAML config file. Repeatable. If omitted, creates a default config at `~/.ring-cli/configurations/<alias>.yml`. |
+| `--references <PATH>` | | Path to a references file listing config paths (alternative to `--config-path`). |
+| `--force` | `-f` | Overwrite existing alias. Cleans old entries from all shell configs before re-installing. |
+| `--warn-only-on-conflict` | | Downgrade name-conflict errors to warnings. |
+| `--check-for-updates` | | Install a shell hook that checks for config changes on terminal startup. |
 
 ---
 
@@ -427,10 +450,10 @@ myapi api users create --payload '{"name":"Alice","email":"alice@example.com"}'
 | Problem | Solution |
 |---------|----------|
 | `ring-cli: command not found` | Add `~/.cargo/bin` to PATH, or use full path `~/.cargo/bin/ring-cli` |
-| `Alias '<name>' already exists in ~/.zshrc, skipping` | Expected on re-init. The alias line is already installed. |
+| `Alias '<name>' already exists. Use --force to overwrite.` | The alias is already installed. Pass `--force` to re-init: `ring-cli init --alias <name> --force ...` |
 | `Config name '<x>' is used by both...` | Two config files have the same `name`. Rename one, or pass `--warn-only-on-conflict`. |
 | `Either 'cmd' or 'subcommands' must be present` | A command has neither `cmd` nor `subcommands`. Add one. |
 | `Only 'cmd' or 'subcommands' should be present, not both` | A command has both. Remove one. |
 | `Environment variable 'X' is not set` | Set the env var before running, or remove the `${{env.X}}` reference. |
-| Tab completion not working | Restart your shell. Completions are installed during `init`. |
+| Tab completion not working | Restart your shell. Completions are installed during `init`. If using an old alias format, re-init with `--force` to upgrade to shell functions. |
 | Config changes not detected | Run `<alias> refresh-configuration`, or re-init with `--check-for-updates`. |

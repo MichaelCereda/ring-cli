@@ -1,30 +1,31 @@
 # Ring-CLI
 
-Ring-CLI generates custom command-line tools from YAML configuration files. Define your commands, flags, and subcommands in YAML, then install them as a shell alias with automatic tab completion, a trust-based security model, and color output.
+Ring-CLI generates custom command-line tools from YAML configuration files. Define your commands, flags, and subcommands in YAML, then install them as a shell command with automatic tab completion, a trust-based security model, and color output.
 
-## Quick Start
+## Getting Started
+
+### 1. Install
 
 ```bash
-# Install ring-cli, then create your first alias
-ring-cli init --alias infra --config-path deploy.yml --config-path db.yml
+# From source (requires Rust toolchain)
+cargo install --path .
+
+# Or via Homebrew (macOS/Linux)
+brew install michaelcereda/ring-cli/ring-cli
 ```
 
-This reads your YAML configs, caches them securely, installs a shell alias, and sets up tab completion. Now you can run:
-
-```
-infra deploy staging --branch main
-infra db migrate
+If `ring-cli` is not found after install, add `~/.cargo/bin` to your PATH:
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
-## Configuration Format
+### 2. Write a config file
 
-Each configuration file defines a named group of commands:
-
+Create `deploy.yml`:
 ```yaml
 version: "2.0"
 name: "deploy"
 description: "Deployment operations"
-base-dir: "/opt/infrastructure"  # optional working directory
 commands:
   staging:
     description: "Deploy to staging"
@@ -35,34 +36,50 @@ commands:
     cmd:
       run:
         - "echo Deploying ${{branch}} to staging"
-  prod:
-    description: "Deploy to production"
-    flags:
-      - name: "tag"
-        short: "t"
-        description: "Release tag"
-    cmd:
-      run:
-        - "echo Deploying ${{tag}} to prod"
 ```
+
+### 3. Init an alias
+
+```bash
+ring-cli init --alias ops --config-path deploy.yml
+```
+
+This validates the YAML, caches it securely, installs a shell function, and sets up tab completion.
+
+### 4. Use it
+
+```bash
+# Restart your shell (or source your profile), then:
+ops deploy staging --branch main
+ops --help
+ops deploy --help
+
+# Tab completion works at every level
+ops <TAB>              # shows: deploy, refresh-configuration
+ops deploy <TAB>       # shows: staging
+ops deploy staging --<TAB>  # shows: --branch
+```
+
+## Configuration Format
+
+Each YAML file defines a named group of commands:
 
 ```yaml
 version: "2.0"
-name: "db"
-description: "Database operations"
+name: "deploy"
+description: "Deployment operations"
+base-dir: "/opt/infrastructure"  # optional working directory
+banner: "🚀 Deploy CLI v1.0"     # optional banner shown on use
 commands:
-  migrate:
-    description: "Run database migrations"
-    flags: []
+  staging:
+    description: "Deploy to staging"
+    flags:
+      - name: "branch"
+        short: "b"
+        description: "Branch to deploy"
     cmd:
       run:
-        - "echo Running migrations..."
-  seed:
-    description: "Seed database"
-    flags: []
-    cmd:
-      run:
-        - "echo Seeding database..."
+        - "echo Deploying ${{branch}} to staging"
 ```
 
 ### Config Fields
@@ -73,6 +90,7 @@ commands:
 | `name`        | Yes      | Name for this config group. Becomes a top-level command.  |
 | `description` | Yes      | Description shown in `--help` output.                    |
 | `base-dir`    | No       | Working directory for all commands in this config.        |
+| `banner`      | No       | Text displayed on stderr when the alias is invoked.       |
 | `commands`    | Yes      | Map of command names to command definitions.              |
 
 ### Command Fields
@@ -108,6 +126,25 @@ infra db migrate        # from db.yml (name: "db")
 ```
 
 If two configs use the same `name`, init will error. Use `--warn-only-on-conflict` to downgrade to a warning.
+
+### References File
+
+Instead of listing configs individually, point to a references file:
+
+```bash
+ring-cli init --alias ops --references .ring-cli/references.yml
+```
+
+`references.yml`:
+```yaml
+banner: "Welcome to Ops CLI"  # optional top-level banner
+configs:
+  - services.yml
+  - db.yml
+  - monitoring.yml
+```
+
+Paths in the references file are resolved relative to the file's own location. A top-level `banner` here takes priority over per-config banners.
 
 ## Shell Commands
 
@@ -179,11 +216,9 @@ Commands can be nested arbitrarily deep using `subcommands`:
 commands:
   cloud:
     description: "Cloud operations"
-    flags: []
     subcommands:
       aws:
         description: "AWS operations"
-        flags: []
         subcommands:
           deploy:
             description: "Deploy to AWS"
@@ -194,6 +229,27 @@ commands:
 ```
 
 Usage: `myalias config-name cloud aws deploy`
+
+## Banner
+
+Display a message when the alias is invoked. Banners print to stderr so they don't interfere with piped output. Suppress with `-q` (quiet mode).
+
+**Per-config banner** — set in each YAML config:
+```yaml
+version: "2.0"
+name: "deploy"
+description: "Deploy tools"
+banner: "🚀 Deploy CLI v2.0 — use with caution in production"
+commands: ...
+```
+
+**Top-level banner** — set in a references file (takes priority over per-config banners):
+```yaml
+banner: "Welcome to Infrastructure CLI"
+configs:
+  - deploy.yml
+  - db.yml
+```
 
 ## Security: Trust System
 
@@ -214,7 +270,7 @@ ring-cli never runs commands from a config file without explicit trust.
   aliases/
     <alias-name>/
       <config-name>.yml   # trusted copy of each config
-      metadata.json        # source paths, SHA-256 hashes, trust timestamps
+      metadata.json        # source paths, SHA-256 hashes, banner, trust timestamps
 ```
 
 ## Color Output
@@ -229,25 +285,32 @@ Only ring-cli's own messages (errors, warnings, success) are colored. Command ou
 
 Tab completion is installed automatically during `ring-cli init` for all detected shells:
 
-- **Bash** and **Zsh**
-- **Fish**
-- **PowerShell**
+- **Bash** and **Zsh** — shell functions with `compdef`/`complete -F` bindings
+- **Fish** — `complete -c` directives
+- **PowerShell** — `Register-ArgumentCompleter`
 
-Completions are generated from the cached config, so they stay fast and consistent. After running `refresh-configuration`, restart your shell to pick up completion changes.
+Completions are generated from the cached config, so they stay fast and consistent. Completions work at every level: top-level subcommands, nested commands, and flags.
+
+After running `refresh-configuration`, restart your shell to pick up completion changes.
 
 ## CLI Reference
 
 ### `ring-cli init`
 
 ```
-ring-cli init --alias <NAME> [--config-path <PATH>]... [--warn-only-on-conflict]
+ring-cli init --alias <NAME> [OPTIONS]
 ```
 
-| Flag                      | Description                                          |
-|---------------------------|------------------------------------------------------|
-| `--alias <NAME>`          | Shell alias name to install (required).              |
-| `--config-path <PATH>`   | Path to a config file. Repeatable for multiple configs. |
-| `--warn-only-on-conflict` | Warn instead of error on config name conflicts.      |
+| Flag                      | Short | Description                                          |
+|---------------------------|-------|------------------------------------------------------|
+| `--alias <NAME>`          |       | Shell alias name to install (required).              |
+| `--config-path <PATH>`   |       | Path to a config file. Repeatable for multiple configs. |
+| `--references <PATH>`    |       | Path to a references file listing config paths.      |
+| `--force`                 | `-f`  | Overwrite existing alias (removes old one first).    |
+| `--warn-only-on-conflict` |       | Warn instead of error on config name conflicts.      |
+| `--check-for-updates`    |       | Check for config changes on every new terminal.      |
+
+`--config-path` and `--references` are mutually exclusive. If neither is given, a default config is created at `~/.ring-cli/configurations/<alias>.yml`.
 
 ### Alias Commands
 
@@ -260,7 +323,7 @@ Once installed, your alias supports:
 
 | Option           | Short | Description                    |
 |------------------|-------|--------------------------------|
-| `--quiet`        | `-q`  | Suppress error messages.       |
+| `--quiet`        | `-q`  | Suppress banners and error messages. |
 | `--verbose`      | `-v`  | Print verbose output.          |
 | `--color <WHEN>` |       | Color output (`auto`, `always`, `never`). |
 | `--help`         | `-h`  | Print help.                    |
@@ -271,5 +334,17 @@ Once installed, your alias supports:
 ### From Source
 
 ```bash
+git clone https://github.com/MichaelCereda/ring-cli.git
+cd ring-cli
 cargo install --path .
+```
+
+### From Releases
+
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/MichaelCereda/ring-cli/releases) page.
+
+### Homebrew
+
+```bash
+brew install michaelcereda/ring-cli/ring-cli
 ```
