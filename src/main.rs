@@ -34,6 +34,28 @@ fn validate_alias_name(name: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Resolve a relative `base_dir` in a configuration to an absolute path,
+/// using the parent directory of the given config file path as the anchor.
+fn resolve_base_dir(config: &mut models::Configuration, config_file_path: &str) {
+    if let Some(ref dir) = config.base_dir {
+        let p = std::path::Path::new(dir);
+        if p.is_relative() {
+            let config_parent = std::path::Path::new(config_file_path)
+                .parent()
+                .unwrap_or(std::path::Path::new("."));
+            let resolved = config_parent.join(p);
+            // Use canonicalize if the path exists, otherwise just use the joined path
+            config.base_dir = Some(
+                resolved
+                    .canonicalize()
+                    .unwrap_or(resolved)
+                    .display()
+                    .to_string(),
+            );
+        }
+    }
+}
+
 fn alias_line_bash_zsh(alias_name: &str) -> String {
     format!("{alias_name}() {{ ring-cli --alias-mode {alias_name} \"$@\"; }} # ring-cli")
 }
@@ -635,11 +657,15 @@ fn main() -> anyhow::Result<()> {
         let (config_contents, _metadata) = cache::load_trusted_configs(alias_name)?;
         let configs: Vec<models::Configuration> = config_contents
             .iter()
-            .map(|c| {
-                serde_saphyr::from_str(c)
-                    .map_err(|e| anyhow::anyhow!("Invalid cached config: {e}"))
+            .zip(_metadata.configs.iter())
+            .map(|(c, entry)| {
+                let mut config: models::Configuration = serde_saphyr::from_str(c)
+                    .map_err(|e| anyhow::anyhow!("Invalid cached config: {e}"))?;
+                // Resolve relative base_dir against the original config file's directory
+                resolve_base_dir(&mut config, &entry.source_path);
+                Ok::<_, anyhow::Error>(config)
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Strip --alias-mode and its value from args, replace argv[0] with alias name
         let clap_args: Vec<String> = {
@@ -713,7 +739,8 @@ fn main() -> anyhow::Result<()> {
         }
     } else if let Some(ref path) = config_path {
         // LEGACY SINGLE-CONFIG MODE: -c <path>
-        let config = utils::load_configuration(path)?;
+        let mut config = utils::load_configuration(path)?;
+        resolve_base_dir(&mut config, path);
         let configs = vec![config];
 
         // Strip the config flag (and its value) from args before clap parses them

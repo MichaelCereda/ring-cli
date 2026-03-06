@@ -76,8 +76,8 @@ description: "<what this group does>"
 
 # OPTIONAL: Working directory for all commands in this config.
 # If set, every shell command runs with this as its cwd.
-# Supports absolute paths only.
-base-dir: "/absolute/path/to/directory"
+# Relative paths resolve from this config file's directory.
+base-dir: ".."
 
 # OPTIONAL: Banner text displayed on stderr when the alias is invoked.
 # Suppressed with --quiet / -q.

@@ -68,7 +68,7 @@ Each YAML file defines a named group of commands:
 version: "2.0"
 name: "deploy"
 description: "Deployment operations"
-base-dir: "/opt/infrastructure"  # optional working directory
+base-dir: ".."  # optional working directory (relative to this file, or absolute)
 banner: "🚀 Deploy CLI v1.0"     # optional banner shown on use
 commands:
   staging:
@@ -89,7 +89,7 @@ commands:
 | `version`     | Yes      | Config format version. Must be `"2.0"`.                  |
 | `name`        | Yes      | Name for this config group. Becomes a top-level command.  |
 | `description` | Yes      | Description shown in `--help` output.                    |
-| `base-dir`    | No       | Working directory for all commands in this config.        |
+| `base-dir`    | No       | Working directory for all commands. Relative paths resolve from the config file's location. |
 | `banner`      | No       | Text displayed on stderr when the alias is invoked.       |
 | `commands`    | Yes      | Map of command names to command definitions.              |
 

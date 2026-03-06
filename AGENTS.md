@@ -21,7 +21,7 @@ ring-cli init --alias <name> --references <references.yml> [--force]
 version: "2.0"
 name: "<group-name>"
 description: "<description>"
-base-dir: "/optional/working/directory"
+base-dir: ".."  # relative to this file, or absolute
 banner: "optional startup message"
 commands:
   <command-name>:

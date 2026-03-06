@@ -90,6 +90,95 @@ fn test_multi_step_command() {
 }
 
 // ---------------------------------------------------------------------------
+// Relative base-dir resolves against config file location
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_relative_base_dir_resolves_from_config_location() {
+    // Create a config with a relative base-dir inside a subdirectory
+    let dir = tempfile::TempDir::new().unwrap();
+    let sub = dir.path().join("configs");
+    std::fs::create_dir_all(&sub).unwrap();
+
+    // base-dir: ".." should resolve to the TempDir root (parent of configs/)
+    let config_path = sub.join("app.yml");
+    std::fs::write(&config_path, format!(
+        r#"version: "2.0"
+name: "app"
+description: "Test app"
+base-dir: ".."
+commands:
+  pwd:
+    description: "Print working directory"
+    flags: []
+    cmd:
+      run:
+        - "pwd"
+"#)).unwrap();
+
+    // Init alias
+    let init = cargo_bin()
+        .args(["init", "--config-path", config_path.to_str().unwrap(), "--alias", "basedir-test", "--force"])
+        .output()
+        .expect("init failed");
+    assert!(init.status.success(), "init failed: {}", String::from_utf8_lossy(&init.stderr));
+
+    // Run the pwd command via alias mode
+    let output = cargo_bin()
+        .args(["--alias-mode", "basedir-test", "app", "pwd"])
+        .output()
+        .expect("failed to run");
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // The working directory should be the TempDir root, not wherever cargo is running from
+    let expected = dir.path().canonicalize().unwrap();
+    let actual = std::path::Path::new(&stdout).canonicalize().unwrap_or_else(|_| {
+        panic!("pwd output is not a valid path: '{stdout}'\nstderr: {stderr}");
+    });
+    assert_eq!(actual, expected,
+        "base-dir should resolve relative to config file location.\nExpected: {}\nGot: {}\nstderr: {}",
+        expected.display(), actual.display(), stderr);
+}
+
+#[test]
+fn test_relative_base_dir_legacy_mode() {
+    // Also test the legacy -c mode
+    let dir = tempfile::TempDir::new().unwrap();
+    let sub = dir.path().join("configs");
+    std::fs::create_dir_all(&sub).unwrap();
+
+    let config_path = sub.join("app.yml");
+    std::fs::write(&config_path, r#"version: "2.0"
+name: "app"
+description: "Test app"
+base-dir: ".."
+commands:
+  pwd:
+    description: "Print working directory"
+    flags: []
+    cmd:
+      run:
+        - "pwd"
+"#).unwrap();
+
+    let output = cargo_bin()
+        .args(["-c", config_path.to_str().unwrap(), "app", "pwd"])
+        .output()
+        .expect("failed to run");
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    let expected = dir.path().canonicalize().unwrap();
+    let actual = std::path::Path::new(&stdout).canonicalize().unwrap_or_else(|_| {
+        panic!("pwd output is not a valid path: '{stdout}'\nstderr: {stderr}");
+    });
+    assert_eq!(actual, expected,
+        "base-dir should resolve relative to config file in legacy mode.\nExpected: {}\nGot: {}\nstderr: {}",
+        expected.display(), actual.display(), stderr);
+}
+
+// ---------------------------------------------------------------------------
 // Alias mode: invalid configs still surface validation errors
 // ---------------------------------------------------------------------------
 
