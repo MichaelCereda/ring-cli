@@ -23,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
     # Only run full matrix on push or same-repo PRs (not fork PRs)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write  # needed for softprops/action-gh-release on tag pushes
     strategy:
       fail-fast: false
       matrix:
