@@ -52,7 +52,7 @@ impl Command {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Flag {
     pub name: String,
     #[serde(default)]

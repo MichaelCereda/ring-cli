@@ -1147,6 +1147,78 @@ fn test_live_shell_fish_nested() {
     assert!(stdout.contains("env"), "fish live completions missing '--env' flag:\n{stdout}");
 }
 
+// ---------------------------------------------------------------------------
+// OpenAPI integration tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_init_openapi_local_spec() {
+    let output = cargo_bin()
+        .args([
+            "init",
+            "--config-path", "openapi:tests/fixtures/petstore.json",
+            "--alias", "petstore-test",
+            "--force",
+            "--yes",
+        ])
+        .output()
+        .expect("failed to run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "init with OpenAPI spec failed:\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    // Verify the alias --help shows expected subcommands
+    let help_output = cargo_bin()
+        .args(["--alias-mode", "petstore-test", "petstore", "--help"])
+        .output()
+        .expect("failed to run alias help");
+    let help_combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&help_output.stdout),
+        String::from_utf8_lossy(&help_output.stderr)
+    );
+    assert!(help_combined.contains("pets"), "help should show 'pets': {help_combined}");
+}
+
+#[test]
+fn test_init_openapi_yes_flag_accepted() {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    let target = dir.path().join("yes_test.yml");
+    let output = cargo_bin()
+        .args(["init", "--config-path", target.to_str().unwrap(), "--alias", "yes-test", "--yes", "--force"])
+        .output()
+        .expect("failed to run");
+    assert!(
+        output.status.success(),
+        "init --yes should be accepted:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn test_refresh_openapi_no_changes() {
+    let output = cargo_bin()
+        .args([
+            "init",
+            "--config-path", "openapi:tests/fixtures/petstore.json",
+            "--alias", "refresh-oa-test",
+            "--force", "--yes",
+        ])
+        .output()
+        .expect("init failed");
+    assert!(output.status.success(), "init failed: {}", String::from_utf8_lossy(&output.stderr));
+
+    let refresh = cargo_bin()
+        .args(["--alias-mode", "refresh-oa-test", "refresh-configuration"])
+        .output()
+        .expect("refresh failed");
+    let stderr = String::from_utf8_lossy(&refresh.stderr);
+    assert!(refresh.status.success(), "refresh failed: {stderr}");
+}
+
 #[test]
 fn test_live_shell_zsh_sources_cleanly() {
     if !has_shell("zsh") {

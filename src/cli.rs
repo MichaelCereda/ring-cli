@@ -3,7 +3,7 @@ use std::process::Command as ShellCommand;
 
 use crate::errors::RingError;
 use crate::models::{Command as RingCommand, Configuration};
-use crate::utils::{replace_env_vars, replace_placeholders};
+use crate::config::{replace_env_vars, replace_placeholders};
 
 fn extract_flag_values(
     flags: &[crate::models::Flag],
@@ -22,11 +22,10 @@ fn build_arg(flag: &crate::models::Flag) -> clap::Arg {
     let mut arg = clap::Arg::new(flag.name.clone())
         .long(flag.name.clone())
         .help(flag.description.clone());
-    if let Some(short_form) = &flag.short {
-        if let Some(c) = short_form.chars().next() {
+    if let Some(short_form) = &flag.short
+        && let Some(c) = short_form.chars().next() {
             arg = arg.short(c);
         }
-    }
     arg
 }
 
@@ -103,7 +102,13 @@ pub fn build_cli(configs: &[Configuration], bin_name: &str) -> clap::Command {
 
     app = app.subcommand(
         clap::Command::new("refresh-configuration")
-            .about("Re-read and trust updated configuration"),
+            .about("Re-read and trust updated configuration")
+            .arg(
+                clap::Arg::new("yes")
+                    .long("yes")
+                    .help("Skip confirmation prompts")
+                    .action(clap::ArgAction::SetTrue),
+            ),
     );
 
     app
@@ -156,6 +161,19 @@ pub fn build_ring_cli() -> clap::Command {
                         .short('f')
                         .long("force")
                         .help("Overwrite existing alias without prompting")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    clap::Arg::new("yes")
+                        .long("yes")
+                        .help("Skip confirmation prompts (for CI/automation)")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    clap::Arg::new("verbose")
+                        .long("verbose")
+                        .short('v')
+                        .help("Show detailed output during init")
                         .action(clap::ArgAction::SetTrue),
                 ),
         )

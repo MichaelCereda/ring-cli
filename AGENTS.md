@@ -1,74 +1,74 @@
-# Ring-CLI
+# Ring-CLI Agent Instructions
 
-Ring-CLI generates custom CLIs from YAML configuration files. You define commands, flags, and subcommands in YAML, then install them as a shell command with tab completion and a trust-based security model.
+Ring-CLI generates CLIs from YAML configs and OpenAPI specs. See [README.md](README.md) for features and [docs/](docs/) for full documentation.
 
-**Start here:** See the [README](README.md) for getting started, configuration format, and complete feature documentation including banners, references files, tab completion, and the `--force` flag.
+## Build & Test
 
-## Quick Reference
+Requires Rust toolchain via mise:
 
-**Install:** `cargo install --path .` (requires Rust toolchain)
-
-**Create an alias:**
 ```bash
-ring-cli init --alias <name> --config-path <file.yml> [--config-path <file2.yml>] [--force] [--check-for-updates]
-
-# Or with a references file:
-ring-cli init --alias <name> --references <references.yml> [--force]
+eval "$(mise activate zsh)" && cargo build
+eval "$(mise activate zsh)" && cargo test
 ```
-
-**Config format (v2.0):**
-```yaml
-version: "2.0"
-name: "<group-name>"
-description: "<description>"
-base-dir: ".."  # relative to this file, or absolute
-banner: "optional startup message"
-commands:
-  <command-name>:
-    description: "<description>"
-    flags:
-      - name: "<flag-name>"
-        short: "<char>"
-        description: "<description>"
-    cmd:
-      run:
-        - "<shell command using ${{flag_name}} and ${{env.VAR}}>"
-```
-
-Each command must have exactly one of `cmd` or `subcommands`, not both.
-
-**Variable substitution:** `${{flag_name}}` for flag values, `${{env.VAR}}` for environment variables.
-
-**Full documentation:** See [README.md](README.md) for all features and the [setup guide](docs/setup-guide.md) for step-by-step installation, YAML schema reference, validation rules, examples, and troubleshooting.
 
 ## Project Structure
 
 ```
 src/
-  main.rs      — Entry point, alias installation, shell hooks, argument dispatch
-  cli.rs       — CLI construction (clap builder API), command execution
-  models.rs    — YAML data structures (Configuration, Command, Flag, CmdType)
-  cache.rs     — Trusted config storage (~/.ring-cli/aliases/), SHA-256 hashing
-  utils.rs     — Config loading, placeholder/env-var replacement
-  style.rs     — Color output (ANSI, NO_COLOR, --color flag)
-  errors.rs    — Error types
+  main.rs          -- Entry point, mode dispatch (~230 lines)
+  init.rs          -- Init flow, default config creation, references, base-dir resolution
+  refresh.rs       -- Refresh and update-check logic
+  shell.rs         -- Shell detection, alias install, completion hooks
+  cli.rs           -- CLI construction (clap builder API), command execution
+  config.rs        -- Config loading, validation, placeholder/env-var replacement
+  models.rs        -- YAML data structures (Configuration, Command, Flag, CmdType)
+  cache.rs         -- Trusted config storage (~/.ring-cli/aliases/), SHA-256 hashing
+  style.rs         -- Color output (ANSI, NO_COLOR, --color flag)
+  errors.rs        -- Error types
+  openapi/
+    mod.rs         -- Public API: process_openapi_source()
+    parser.rs      -- OpenAPI 3.0 spec parsing via openapiv3
+    transform.rs   -- Spec-to-Configuration transformation, path hierarchy, flag generation
+    http_tool.rs   -- curl/wget detection, command generation, remote fetching
 tests/
-  integration.rs — End-to-end CLI tests (init, completions, live shell tests)
-  fixtures/      — Test YAML configs
+  integration.rs   -- End-to-end CLI tests (init, completions, OpenAPI, live shell tests)
+  fixtures/        -- Test YAML configs and OpenAPI specs
+docs/
+  getting-started.md          -- Step-by-step setup guide
+  configuration-reference.md  -- Full YAML schema reference
+  openapi-guide.md            -- OpenAPI usage guide
+  setup-guide.md              -- Installation and setup
 ```
 
-## Key Concepts
+## Architecture
 
-- **Two modes:** Installer mode (`ring-cli init`) and alias mode (`ring-cli --alias-mode <name>`)
-- **Multi-config:** Multiple `--config-path` flags per alias; each config's `name` becomes a subcommand
-- **References file:** `--references` flag loads a YAML manifest listing config paths and an optional top-level banner
-- **Banner:** Optional message displayed on stderr when alias is invoked; suppressed with `-q`
-- **Trust system:** Configs are cached with SHA-256 hashes in `~/.ring-cli/aliases/<name>/`
-- **Update checking:** `--check-for-updates` installs a shell startup hook; `refresh-configuration` re-trusts changed configs
-- **Shell support:** Bash, Zsh, Fish, PowerShell (shell functions + tab completion)
-- **`--force` flag:** Required to overwrite an existing alias during init; cleans old entries from all shell configs before re-installing
-- **Shell functions (not aliases):** Uses `name() { ring-cli --alias-mode name "$@"; }` so tab completion works correctly with zsh/bash
+- **Dynamic CLI from YAML** -- commands are loaded at runtime, must use clap builder API (not derive)
+- **Two modes:** installer (`ring-cli init`) and alias (`ring-cli --alias-mode <name>`)
+- **OpenAPI support:** specs transformed to Configuration structs at init time, commands use curl/wget
+- **Trust model:** configs cached with SHA-256 in `~/.ring-cli/aliases/<name>/`
+- **Zero network footprint:** no HTTP client in the binary, curl/wget for external tools only
+- **Placeholder syntax:** `${{flag_name}}` and `${{env.VAR_NAME}}`
+- **Shell support:** bash, zsh, fish, powershell (functions + tab completion)
+- **Output:** stdout for command output only, stderr for all ring-cli messages
+- **POSIX-safe:** ASCII-only output, no emojis
+
+## Code Conventions
+
+- Each command must have exactly one of `cmd` or `subcommands`, not both
+- Error handling: `RingError` enum with thiserror, `anyhow` at top level
+- YAML parsing: `serde-saphyr` (panic-free, maintained)
+- OpenAPI parsing: `openapiv3` (pure Rust, no network)
+- Colors respect `NO_COLOR` env var and `--color` flag
+- Tests that depend on Unix shell behavior must be skipped on Windows with `#[cfg_attr(target_os = "windows", ignore = "reason")]`
 
 ## Git Conventions
 
-- **No co-authoring:** Do not add `Co-Authored-By` trailers to commit messages.
+- Do not add `Co-Authored-By` trailers to commit messages
+- Commit messages should be concise and describe the "why"
+
+## Key Dependencies
+
+- clap 4.5 (with "string" feature for dynamic CLI building)
+- openapiv3 2 (OpenAPI 3.0 parsing)
+- serde-saphyr 0.0.21 (YAML)
+- dirs 6.0, thiserror 2.0, anyhow 1.0

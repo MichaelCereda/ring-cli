@@ -1,0 +1,28 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Petstore Auth", "version": "1.0.0" },
+  "servers": [{ "url": "https://petstore.example.com/v1" }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List all pets",
+        "responses": { "200": { "description": "A list of pets" } }
+      }
+    }
+  }
+}

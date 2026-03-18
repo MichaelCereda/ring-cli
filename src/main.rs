@@ -1,601 +1,13 @@
 mod cache;
 mod cli;
+mod config;
 mod errors;
+mod init;
 mod models;
+mod openapi;
+mod refresh;
+mod shell;
 mod style;
-mod utils;
-
-use std::fs;
-use std::path::PathBuf;
-
-fn default_config_dir() -> PathBuf {
-    dirs::home_dir()
-        .expect("Unable to determine home directory")
-        .join(".ring-cli/configurations")
-}
-
-#[derive(Clone, Copy)]
-enum ShellKind {
-    BashZsh,
-    Fish,
-    PowerShell,
-}
-
-fn validate_alias_name(name: &str) -> Result<(), anyhow::Error> {
-    if name.is_empty() {
-        anyhow::bail!("Alias name cannot be empty");
-    }
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-        anyhow::bail!(
-            "Alias name '{}' contains invalid characters. Only alphanumeric, '-', and '_' are allowed.",
-            name
-        );
-    }
-    Ok(())
-}
-
-/// Resolve a relative `base_dir` in a configuration to an absolute path,
-/// using the parent directory of the given config file path as the anchor.
-fn resolve_base_dir(config: &mut models::Configuration, config_file_path: &str) {
-    if let Some(ref dir) = config.base_dir {
-        let p = std::path::Path::new(dir);
-        if p.is_relative() {
-            let config_parent = std::path::Path::new(config_file_path)
-                .parent()
-                .unwrap_or(std::path::Path::new("."));
-            let resolved = config_parent.join(p);
-            // Use canonicalize if the path exists, otherwise just use the joined path
-            config.base_dir = Some(
-                resolved
-                    .canonicalize()
-                    .unwrap_or(resolved)
-                    .display()
-                    .to_string(),
-            );
-        }
-    }
-}
-
-fn alias_line_bash_zsh(alias_name: &str) -> String {
-    format!("{alias_name}() {{ ring-cli --alias-mode {alias_name} \"$@\"; }} # ring-cli")
-}
-
-fn alias_line_fish(alias_name: &str) -> String {
-    format!("function {alias_name}; ring-cli --alias-mode {alias_name} $argv; end # ring-cli")
-}
-
-fn alias_line_powershell(alias_name: &str) -> String {
-    format!("function {alias_name} {{ ring-cli --alias-mode {alias_name} @args }} # ring-cli")
-}
-
-fn alias_exists(file_content: &str, alias_name: &str, kind: ShellKind) -> bool {
-    match kind {
-        ShellKind::BashZsh => {
-            // Detect both old alias format and new function format
-            file_content.contains(&format!("alias {alias_name}="))
-                || file_content.contains(&format!("{alias_name}()"))
-        }
-        ShellKind::Fish => {
-            file_content.contains(&format!("alias {alias_name} "))
-                || file_content.contains(&format!("function {alias_name};"))
-        }
-        ShellKind::PowerShell => file_content.contains(&format!("function {alias_name}")),
-    }
-}
-
-struct ShellConfig {
-    path: PathBuf,
-    kind: ShellKind,
-    display_name: &'static str,
-}
-
-fn detect_shell_configs() -> Vec<ShellConfig> {
-    let home = match dirs::home_dir() {
-        Some(h) => h,
-        None => return vec![],
-    };
-    let candidates = vec![
-        ShellConfig {
-            path: home.join(".bashrc"),
-            kind: ShellKind::BashZsh,
-            display_name: "~/.bashrc",
-        },
-        ShellConfig {
-            path: home.join(".zshrc"),
-            kind: ShellKind::BashZsh,
-            display_name: "~/.zshrc",
-        },
-        ShellConfig {
-            path: home.join(".config/fish/config.fish"),
-            kind: ShellKind::Fish,
-            display_name: "~/.config/fish/config.fish",
-        },
-        ShellConfig {
-            path: home.join(".config/powershell/Microsoft.PowerShell_profile.ps1"),
-            kind: ShellKind::PowerShell,
-            display_name: "~/.config/powershell/Microsoft.PowerShell_profile.ps1",
-        },
-    ];
-    #[cfg(target_os = "windows")]
-    let candidates = {
-        let mut c = candidates;
-        c.push(ShellConfig {
-            path: home.join("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"),
-            kind: ShellKind::PowerShell,
-            display_name: "~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
-        });
-        c
-    };
-    candidates.into_iter().filter(|sc| sc.path.exists()).collect()
-}
-
-fn install_alias(alias_name: &str) -> Result<(), anyhow::Error> {
-    validate_alias_name(alias_name)?;
-    let shells = detect_shell_configs();
-    if shells.is_empty() {
-        eprintln!("Warning: No shell config files found. Add the alias manually:");
-        eprintln!("  Bash/Zsh: {}", alias_line_bash_zsh(alias_name));
-        eprintln!("  Fish:     {}", alias_line_fish(alias_name));
-        eprintln!("  PowerShell: {}", alias_line_powershell(alias_name));
-        return Ok(());
-    }
-
-    let mut modified = Vec::new();
-    for shell in &shells {
-        let content = fs::read_to_string(&shell.path)?;
-        if alias_exists(&content, alias_name, shell.kind) {
-            println!("Alias '{}' already exists in {}, skipping.", alias_name, shell.display_name);
-            continue;
-        }
-        let line = match shell.kind {
-            ShellKind::BashZsh => alias_line_bash_zsh(alias_name),
-            ShellKind::Fish => alias_line_fish(alias_name),
-            ShellKind::PowerShell => alias_line_powershell(alias_name),
-        };
-        let mut file = fs::OpenOptions::new().append(true).open(&shell.path)?;
-        use std::io::Write;
-        writeln!(file, "\n{}", line)?;
-        modified.push(shell.display_name);
-    }
-
-    if !modified.is_empty() {
-        println!("Added alias '{}' to:", alias_name);
-        for name in &modified {
-            println!("  {}", name);
-        }
-        if let Some(first) = modified.first() {
-            println!("Restart your terminal or run 'source {}' to use '{}'.", first, alias_name);
-        }
-    }
-
-    Ok(())
-}
-
-fn install_update_check(alias_name: &str) -> Result<(), anyhow::Error> {
-    let shells = detect_shell_configs();
-    for shell in &shells {
-        let content = fs::read_to_string(&shell.path)?;
-        let marker = format!("# ring-cli-update-check:{alias_name}");
-        if content.contains(&marker) {
-            continue;
-        }
-        let hook = format!("ring-cli --check-updates {alias_name} {marker}");
-        let mut file = fs::OpenOptions::new().append(true).open(&shell.path)?;
-        use std::io::Write;
-        writeln!(file, "{}", hook)?;
-    }
-    Ok(())
-}
-
-fn clean_alias_lines(content: &str, alias_name: &str, kind: ShellKind) -> String {
-    let ring_cli_marker = "# ring-cli";
-    let completion_marker = format!("# ring-cli-completions:{alias_name}");
-    let update_marker = format!("# ring-cli-update-check:{alias_name}");
-
-    let filtered: Vec<&str> = content
-        .lines()
-        .filter(|line| {
-            let is_alias_line = match kind {
-                ShellKind::BashZsh => {
-                    (line.contains(&format!("alias {alias_name}="))
-                        || line.contains(&format!("{alias_name}()")))
-                        && line.contains(ring_cli_marker)
-                }
-                ShellKind::Fish => {
-                    (line.contains(&format!("alias {alias_name} "))
-                        || line.contains(&format!("function {alias_name};")))
-                        && line.contains(ring_cli_marker)
-                }
-                ShellKind::PowerShell => {
-                    line.contains(&format!("function {alias_name}")) && line.contains(ring_cli_marker)
-                }
-            };
-            let is_completion_line = line.contains(&completion_marker);
-            let is_update_line = line.contains(&update_marker);
-            !is_alias_line && !is_completion_line && !is_update_line
-        })
-        .collect();
-
-    let mut result = filtered.join("\n");
-    if content.ends_with('\n') {
-        result.push('\n');
-    }
-    result
-}
-
-fn clean_alias_from_shells(alias_name: &str) -> Result<(), anyhow::Error> {
-    let shells = detect_shell_configs();
-    for shell in &shells {
-        let content = fs::read_to_string(&shell.path)?;
-        let cleaned = clean_alias_lines(&content, alias_name, shell.kind);
-        if cleaned != content {
-            fs::write(&shell.path, &cleaned)?;
-        }
-    }
-    Ok(())
-}
-
-fn remove_update_check(alias_name: &str) -> Result<(), anyhow::Error> {
-    let shells = detect_shell_configs();
-    let marker = format!("# ring-cli-update-check:{alias_name}");
-    for shell in &shells {
-        let content = fs::read_to_string(&shell.path)?;
-        if !content.contains(&marker) {
-            continue;
-        }
-        let filtered: String = content
-            .lines()
-            .filter(|line| !line.contains(&marker))
-            .collect::<Vec<_>>()
-            .join("\n");
-        // Preserve trailing newline
-        let filtered = if content.ends_with('\n') {
-            format!("{filtered}\n")
-        } else {
-            filtered
-        };
-        fs::write(&shell.path, filtered)?;
-    }
-    Ok(())
-}
-
-fn handle_check_updates(alias_name: &str) -> Result<(), anyhow::Error> {
-    let (_, metadata) = match cache::load_trusted_configs(alias_name) {
-        Ok(data) => data,
-        Err(_) => return Ok(()), // Silently skip if no cache — don't block shell startup
-    };
-
-    let mut changed: Vec<&cache::ConfigEntry> = Vec::new();
-    for entry in &metadata.configs {
-        let source_content = match fs::read_to_string(&entry.source_path) {
-            Ok(c) => c,
-            Err(_) => continue, // Source gone — skip silently
-        };
-        let current_hash = cache::compute_hash(&source_content);
-        if current_hash != entry.hash {
-            changed.push(entry);
-        }
-    }
-
-    if changed.is_empty() {
-        return Ok(());
-    }
-
-    // Initialize color for the prompt
-    style::init(style::ColorMode::Auto);
-
-    println!(
-        "{}",
-        style::warn(&format!(
-            "Configuration updates available for '{alias_name}':"
-        ))
-    );
-    for entry in &changed {
-        println!("  - {} ({})", entry.name, entry.source_path);
-    }
-
-    eprint!("Do you want to update? [y/N] ");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-    if input.trim().to_lowercase() != "y" {
-        return Ok(());
-    }
-
-    // Re-read all configs and trust the updated versions
-    let mut updated_configs: Vec<(String, String, String)> = Vec::new();
-    for entry in &metadata.configs {
-        let source_content = match fs::read_to_string(&entry.source_path) {
-            Ok(content) => {
-                // Validate before trusting
-                let _config: models::Configuration = serde_saphyr::from_str(&content)
-                    .map_err(|e| {
-                        anyhow::anyhow!("Updated configuration '{}' is invalid: {e}", entry.name)
-                    })?;
-                content
-            }
-            Err(_) => {
-                // Fall back to cached copy
-                let dir = cache::alias_dir(alias_name);
-                fs::read_to_string(dir.join(format!("{}.yml", entry.name)))?
-            }
-        };
-        updated_configs.push((entry.name.clone(), entry.source_path.clone(), source_content));
-    }
-
-    cache::save_trusted_configs(alias_name, &updated_configs, metadata.banner.clone())?;
-    println!("{}", style::success("Configuration updated and trusted."));
-
-    Ok(())
-}
-
-fn install_completions(alias_name: &str) -> Result<(), anyhow::Error> {
-    let shells = detect_shell_configs();
-    for shell in &shells {
-        let content = fs::read_to_string(&shell.path)?;
-        let completion_marker = format!("# ring-cli-completions:{alias_name}");
-        if content.contains(&completion_marker) {
-            continue;
-        }
-        let hook = match shell.kind {
-            ShellKind::BashZsh => {
-                if shell.display_name.contains("zsh") {
-                    format!(
-                        "eval \"$(ring-cli --generate-completions zsh {alias_name})\" {completion_marker}"
-                    )
-                } else {
-                    format!(
-                        "eval \"$(ring-cli --generate-completions bash {alias_name})\" {completion_marker}"
-                    )
-                }
-            }
-            ShellKind::Fish => {
-                format!(
-                    "ring-cli --generate-completions fish {alias_name} | source {completion_marker}"
-                )
-            }
-            ShellKind::PowerShell => {
-                format!(
-                    "ring-cli --generate-completions powershell {alias_name} | Invoke-Expression {completion_marker}"
-                )
-            }
-        };
-        let mut file = fs::OpenOptions::new().append(true).open(&shell.path)?;
-        use std::io::Write;
-        writeln!(file, "{}", hook)?;
-    }
-    Ok(())
-}
-
-fn create_default_config(path: &std::path::Path) -> Result<(), anyhow::Error> {
-    if path.exists() {
-        anyhow::bail!("File already exists: {}", path.display());
-    }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let template = r#"# Ring-CLI Configuration
-version: "2.0"
-name: "mycli"
-description: "My custom CLI"
-commands:
-  greet:
-    description: "Greet a user"
-    flags:
-      - name: "name"
-        short: "n"
-        description: "Name of the user to greet"
-    cmd:
-      run:
-        - "echo Hello, ${{name}}!"
-"#;
-    fs::write(path, template)?;
-    println!("Created configuration at: {}", path.display());
-    Ok(())
-}
-
-/// A references file that lists config paths relative to its own location.
-#[derive(serde::Deserialize)]
-struct References {
-    #[serde(default)]
-    banner: Option<String>,
-    configs: Vec<String>,
-}
-
-fn resolve_references(references_path: &std::path::Path) -> Result<(Vec<PathBuf>, Option<String>), anyhow::Error> {
-    let content = fs::read_to_string(references_path)
-        .map_err(|e| anyhow::anyhow!("Cannot read references file '{}': {e}", references_path.display()))?;
-    let refs: References = serde_saphyr::from_str(&content)
-        .map_err(|e| anyhow::anyhow!("Invalid references file '{}': {e}", references_path.display()))?;
-
-    let base_dir = references_path.parent().unwrap_or(std::path::Path::new("."));
-    let mut paths = Vec::new();
-    for config_path in &refs.configs {
-        let resolved = base_dir.join(config_path);
-        if !resolved.exists() {
-            anyhow::bail!(
-                "Config '{}' referenced in '{}' does not exist (resolved to '{}')",
-                config_path,
-                references_path.display(),
-                resolved.display()
-            );
-        }
-        paths.push(resolved);
-    }
-    Ok((paths, refs.banner))
-}
-
-fn handle_init(
-    config_paths: Option<clap::parser::ValuesRef<'_, String>>,
-    references_path: Option<&String>,
-    alias: Option<&String>,
-    warn_only_on_conflict: bool,
-    check_for_updates: bool,
-    force: bool,
-) -> Result<(), anyhow::Error> {
-    let alias_name = alias.ok_or_else(|| anyhow::anyhow!("--alias is required for init"))?;
-    validate_alias_name(alias_name)?;
-
-    // Check if alias already exists in any shell config
-    let shells = detect_shell_configs();
-    let exists_in_any = shells.iter().any(|shell| {
-        fs::read_to_string(&shell.path)
-            .map(|content| alias_exists(&content, alias_name, shell.kind))
-            .unwrap_or(false)
-    });
-
-    if exists_in_any {
-        if !force {
-            anyhow::bail!(
-                "Alias '{}' already exists. Use --force to overwrite.",
-                alias_name
-            );
-        }
-        clean_alias_from_shells(alias_name)?;
-    }
-
-    let (paths, top_level_banner): (Vec<PathBuf>, Option<String>) = if let Some(ref_path) = references_path {
-        resolve_references(std::path::Path::new(ref_path))?
-    } else if let Some(paths) = config_paths {
-        (paths.map(PathBuf::from).collect(), None)
-    } else {
-        let dir = default_config_dir();
-        fs::create_dir_all(&dir)?;
-        let path = dir.join(format!("{alias_name}.yml"));
-        if !path.exists() {
-            create_default_config(&path)?;
-        }
-        (vec![path], None)
-    };
-
-    // Read and validate all configs
-    let mut configs_data: Vec<(String, String, String)> = Vec::new(); // (name, abs_path, content)
-    let mut seen_names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-
-    for path in &paths {
-        if !path.exists() {
-            create_default_config(path)?;
-        }
-        let abs_path = fs::canonicalize(path)?;
-        let abs_path_str = abs_path.display().to_string();
-        let content = fs::read_to_string(&abs_path)?;
-        let config: models::Configuration = serde_saphyr::from_str(&content)
-            .map_err(|e| anyhow::anyhow!("Invalid configuration at '{}': {e}", abs_path_str))?;
-
-        // Check for name conflicts
-        if let Some(prev_path) = seen_names.get(&config.name) {
-            let msg = format!(
-                "Config name '{}' is used by both '{}' and '{}'",
-                config.name, prev_path, abs_path_str
-            );
-            if warn_only_on_conflict {
-                eprintln!("{}", style::warn(&msg));
-            } else {
-                anyhow::bail!("{}", msg);
-            }
-        }
-        seen_names.insert(config.name.clone(), abs_path_str.clone());
-
-        configs_data.push((config.name.clone(), abs_path_str, content));
-    }
-
-    // Resolve effective banner: top-level (from references) takes priority,
-    // otherwise collect per-config banners.
-    let banner = if top_level_banner.is_some() {
-        top_level_banner
-    } else {
-        let per_config: Vec<String> = paths.iter().zip(configs_data.iter())
-            .filter_map(|(_, (_, _, content))| {
-                let config: models::Configuration = serde_saphyr::from_str(content).ok()?;
-                config.banner
-            })
-            .collect();
-        if per_config.is_empty() {
-            None
-        } else {
-            Some(per_config.join("\n"))
-        }
-    };
-
-    // Save all trusted configs to cache
-    cache::save_trusted_configs(alias_name, &configs_data, banner)?;
-
-    // Install shell alias (only needs to be done once per alias)
-    install_alias(alias_name)?;
-
-    // Install completion hooks
-    install_completions(alias_name)?;
-
-    // Install or remove update-check shell hook
-    if check_for_updates {
-        install_update_check(alias_name)?;
-    } else {
-        remove_update_check(alias_name)?;
-    }
-
-    println!("{}", style::success(&format!("Alias '{}' is ready!", alias_name)));
-
-    Ok(())
-}
-
-fn handle_refresh_configuration(alias_name: &str) -> Result<(), anyhow::Error> {
-    let (_, metadata) = cache::load_trusted_configs(alias_name)
-        .map_err(|_| anyhow::anyhow!("No cached configuration found for alias '{alias_name}'. Run 'ring-cli init' first."))?;
-
-    let mut any_changed = false;
-    let mut updated_configs: Vec<(String, String, String)> = Vec::new();
-
-    for entry in &metadata.configs {
-        let source_content = match fs::read_to_string(&entry.source_path) {
-            Ok(content) => content,
-            Err(_) => {
-                eprintln!("{}", style::error(&format!(
-                    "Source '{}' not found at '{}'. Using cached copy.",
-                    entry.name, entry.source_path
-                )));
-                let dir = cache::alias_dir(alias_name);
-                let cached = fs::read_to_string(dir.join(format!("{}.yml", entry.name)))?;
-                updated_configs.push((entry.name.clone(), entry.source_path.clone(), cached));
-                continue;
-            }
-        };
-
-        let current_hash = cache::compute_hash(&source_content);
-        if current_hash == entry.hash {
-            // Unchanged — keep as-is
-            updated_configs.push((entry.name.clone(), entry.source_path.clone(), source_content));
-            continue;
-        }
-
-        // Changed — validate before prompting
-        let _config: models::Configuration = serde_saphyr::from_str(&source_content)
-            .map_err(|e| anyhow::anyhow!("New configuration '{}' is invalid: {e}", entry.name))?;
-
-        println!("{}", style::warn(&format!("Configuration '{}' has changed.", entry.name)));
-        println!("Source: {}", entry.source_path);
-
-        eprint!("Trust this configuration? [y/N] ");
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        if input.trim().to_lowercase() == "y" {
-            updated_configs.push((entry.name.clone(), entry.source_path.clone(), source_content));
-            any_changed = true;
-        } else {
-            println!("Keeping previous version of '{}'.", entry.name);
-            let dir = cache::alias_dir(alias_name);
-            let cached = fs::read_to_string(dir.join(format!("{}.yml", entry.name)))?;
-            updated_configs.push((entry.name.clone(), entry.source_path.clone(), cached));
-        }
-    }
-
-    if any_changed {
-        cache::save_trusted_configs(alias_name, &updated_configs, metadata.banner.clone())?;
-        println!("{}", style::success("Configuration updated and trusted."));
-    } else {
-        println!("{}", style::success("Configuration is up to date."));
-    }
-
-    Ok(())
-}
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -632,7 +44,7 @@ fn main() -> anyhow::Result<()> {
         let alias_name = args
             .get(pos + 1)
             .ok_or_else(|| anyhow::anyhow!("Missing alias name after --check-updates"))?;
-        return handle_check_updates(alias_name);
+        return refresh::handle_check_updates(alias_name, false);
     }
 
     // Detect alias mode (--alias-mode <name>)
@@ -662,7 +74,7 @@ fn main() -> anyhow::Result<()> {
                 let mut config: models::Configuration = serde_saphyr::from_str(c)
                     .map_err(|e| anyhow::anyhow!("Invalid cached config: {e}"))?;
                 // Resolve relative base_dir against the original config file's directory
-                resolve_base_dir(&mut config, &entry.source_path);
+                init::resolve_base_dir(&mut config, &entry.source_path);
                 Ok::<_, anyhow::Error>(config)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -718,29 +130,29 @@ fn main() -> anyhow::Result<()> {
         }
 
         // Handle refresh-configuration
-        if matches.subcommand_matches("refresh-configuration").is_some() {
-            return handle_refresh_configuration(alias_name);
+        if let Some(refresh_matches) = matches.subcommand_matches("refresh-configuration") {
+            let refresh_yes = refresh_matches.get_flag("yes");
+            return refresh::handle_refresh_configuration(alias_name, refresh_yes);
         }
 
         // Dispatch: match config name subcommand, then command within that config
         for config in &configs {
             if let Some(config_matches) = matches.subcommand_matches(&config.name) {
                 for (cmd_name, cmd) in &config.commands {
-                    if let Some(cmd_matches) = config_matches.subcommand_matches(cmd_name) {
-                        if let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, config.base_dir.as_deref()) {
+                    if let Some(cmd_matches) = config_matches.subcommand_matches(cmd_name)
+                        && let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, config.base_dir.as_deref()) {
                             if !is_quiet {
                                 eprintln!("{}", style::error(&e.to_string()));
                             }
                             std::process::exit(1);
                         }
-                    }
                 }
             }
         }
     } else if let Some(ref path) = config_path {
         // LEGACY SINGLE-CONFIG MODE: -c <path>
-        let mut config = utils::load_configuration(path)?;
-        resolve_base_dir(&mut config, path);
+        let mut config = config::load_configuration(path)?;
+        init::resolve_base_dir(&mut config, path);
         let configs = vec![config];
 
         // Strip the config flag (and its value) from args before clap parses them
@@ -788,14 +200,13 @@ fn main() -> anyhow::Result<()> {
         for config in &configs {
             if let Some(config_matches) = matches.subcommand_matches(&config.name) {
                 for (cmd_name, cmd) in &config.commands {
-                    if let Some(cmd_matches) = config_matches.subcommand_matches(cmd_name) {
-                        if let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, config.base_dir.as_deref()) {
+                    if let Some(cmd_matches) = config_matches.subcommand_matches(cmd_name)
+                        && let Err(e) = cli::execute_command(cmd, cmd_matches, is_verbose, config.base_dir.as_deref()) {
                             if !is_quiet {
                                 eprintln!("{}", style::error(&e.to_string()));
                             }
                             std::process::exit(1);
                         }
-                    }
                 }
             }
         }
@@ -810,106 +221,11 @@ fn main() -> anyhow::Result<()> {
             let warn_only = init_matches.get_flag("warn-only-on-conflict");
             let check_for_updates = init_matches.get_flag("check-for-updates");
             let force = init_matches.get_flag("force");
-            return handle_init(config_paths, references, alias, warn_only, check_for_updates, force);
+            let yes = init_matches.get_flag("yes");
+            let verbose = init_matches.get_flag("verbose");
+            return init::handle_init(config_paths, references, alias, warn_only, check_for_updates, force, yes, verbose);
         }
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_bash_alias_line() {
-        let line = alias_line_bash_zsh("my-tool");
-        assert_eq!(line, "my-tool() { ring-cli --alias-mode my-tool \"$@\"; } # ring-cli");
-    }
-
-    #[test]
-    fn test_fish_alias_line() {
-        let line = alias_line_fish("my-tool");
-        assert_eq!(line, "function my-tool; ring-cli --alias-mode my-tool $argv; end # ring-cli");
-    }
-
-    #[test]
-    fn test_powershell_alias_line() {
-        let line = alias_line_powershell("my-tool");
-        assert_eq!(
-            line,
-            "function my-tool { ring-cli --alias-mode my-tool @args } # ring-cli"
-        );
-    }
-
-    #[test]
-    fn test_alias_already_exists_bash() {
-        // New function format
-        let content = "# my stuff\nmy-tool() { ring-cli --alias-mode my-tool \"$@\"; } # ring-cli\n";
-        assert!(alias_exists(content, "my-tool", ShellKind::BashZsh));
-        assert!(!alias_exists(content, "other-tool", ShellKind::BashZsh));
-        // Old alias format still detected
-        let old = "alias my-tool='ring-cli --alias-mode my-tool' # ring-cli\n";
-        assert!(alias_exists(old, "my-tool", ShellKind::BashZsh));
-    }
-
-    #[test]
-    fn test_alias_already_exists_fish() {
-        let content = "function my-tool; ring-cli --alias-mode my-tool $argv; end # ring-cli\n";
-        assert!(alias_exists(content, "my-tool", ShellKind::Fish));
-        assert!(!alias_exists(content, "other-tool", ShellKind::Fish));
-        // Old alias format still detected
-        let old = "alias my-tool 'ring-cli --alias-mode my-tool' # ring-cli\n";
-        assert!(alias_exists(old, "my-tool", ShellKind::Fish));
-    }
-
-    #[test]
-    fn test_alias_already_exists_powershell() {
-        let content = "function my-tool { ring-cli --alias-mode my-tool @args } # ring-cli\n";
-        assert!(alias_exists(content, "my-tool", ShellKind::PowerShell));
-        assert!(!alias_exists(content, "other-tool", ShellKind::PowerShell));
-    }
-
-    #[test]
-    fn test_clean_alias_lines_removes_ring_cli_entries() {
-        let content = "# my stuff\nos() { ring-cli --alias-mode os \"$@\"; } # ring-cli\neval \"$(ring-cli --generate-completions zsh os)\" # ring-cli-completions:os\nring-cli --check-updates os # ring-cli-update-check:os\nexport PATH=$HOME/bin:$PATH\n";
-        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
-        assert_eq!(cleaned, "# my stuff\nexport PATH=$HOME/bin:$PATH\n");
-    }
-
-    #[test]
-    fn test_clean_alias_lines_removes_old_alias_format() {
-        let content = "alias os='ring-cli --alias-mode os' # ring-cli\neval \"$(ring-cli --generate-completions zsh os)\" # ring-cli-completions:os\n";
-        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
-        assert_eq!(cleaned, "\n");
-    }
-
-    #[test]
-    fn test_clean_alias_lines_preserves_other_aliases() {
-        let content = "os() { ring-cli --alias-mode os \"$@\"; } # ring-cli\nalias other='something'\n";
-        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
-        assert_eq!(cleaned, "alias other='something'\n");
-    }
-
-    #[test]
-    fn test_clean_alias_lines_ignores_non_ring_cli_function() {
-        let content = "os() { my-custom-command; }\n";
-        let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
-        assert_eq!(cleaned, "os() { my-custom-command; }\n");
-    }
-
-    #[test]
-    fn test_validate_alias_name_valid() {
-        assert!(validate_alias_name("my-tool").is_ok());
-        assert!(validate_alias_name("my_tool").is_ok());
-        assert!(validate_alias_name("mytool123").is_ok());
-    }
-
-    #[test]
-    fn test_validate_alias_name_invalid() {
-        assert!(validate_alias_name("").is_err());
-        assert!(validate_alias_name("my tool").is_err());
-        assert!(validate_alias_name("my;tool").is_err());
-        assert!(validate_alias_name("my'tool").is_err());
-    }
 }

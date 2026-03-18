@@ -1,0 +1,46 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Mixed API", "version": "1.0.0" },
+  "servers": [{ "url": "https://api.example.com" }],
+  "paths": {
+    "/normal": {
+      "get": {
+        "summary": "Normal endpoint",
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/xml-only": {
+      "get": {
+        "summary": "XML only endpoint",
+        "responses": {
+          "200": {
+            "description": "XML response",
+            "content": {
+              "application/xml": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload": {
+      "post": {
+        "summary": "File upload",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "uploaded" } }
+      }
+    }
+  }
+}
