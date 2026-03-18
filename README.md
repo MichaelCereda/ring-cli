@@ -64,6 +64,34 @@ ops --help                  # see all commands
 ops <TAB>                   # tab completion works at every level
 ```
 
+## Multi-Config Example
+
+Combine multiple configs into a single alias -- each config becomes a top-level subcommand:
+
+```bash
+ring-cli init --alias infra \
+  --config-path deploy.yml \
+  --config-path db.yml \
+  --config-path monitoring.yml
+```
+
+```
+$ infra --help
+Usage: infra [OPTIONS] [COMMAND]
+
+Commands:
+  deploy                 Build and deploy services to any environment
+  db                     Database migrations, backups, and connectivity
+  monitoring             Dashboards, alerts, and log queries
+  refresh-configuration  Re-read and trust updated configuration
+
+$ infra deploy staging --service api --branch main
+$ infra db migrate --env production
+$ infra monitoring alerts --team backend
+```
+
+Three YAML configs, one alias, full tab completion at every level.
+
 ## Quick Start: From OpenAPI
 
 Transform an OpenAPI spec into commands in seconds:
