@@ -102,9 +102,13 @@ jobs:
           git diff --cached --quiet && echo "No changes" && exit 0
 
           branch="chore/homebrew-v${{ steps.version.outputs.version }}"
+          # Clean up any stale branch from a previous run
+          git push origin --delete "$branch" 2>/dev/null || true
           git checkout -b "$branch"
           git commit -m "chore: update Homebrew formula for v${{ steps.version.outputs.version }}"
           git push origin "$branch"
+          # Close any existing PR for this branch before creating a new one
+          gh pr close "$branch" 2>/dev/null || true
           gh pr create \
             --title "chore: update Homebrew formula for v${{ steps.version.outputs.version }}" \
             --body "Automated update of Homebrew formula with SHA-256 hashes from release v${{ steps.version.outputs.version }}." \
