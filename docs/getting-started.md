@@ -300,6 +300,26 @@ Once installed, your alias supports:
 
 ## Installation
 
+### Quick Install (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+```
+
+### Quick Install (Windows PowerShell)
+
+```powershell
+irm https://github.com/MichaelCereda/ring-cli/releases/latest/download/ring-cli-Windows-x86_64.zip -OutFile ring-cli.zip; Expand-Archive ring-cli.zip -DestinationPath $env:LOCALAPPDATA\ring-cli -Force; $env:PATH += ";$env:LOCALAPPDATA\ring-cli"
+```
+
+To make it permanent, add `$env:LOCALAPPDATA\ring-cli` to your system PATH.
+
+### Homebrew
+
+```bash
+brew install michaelcereda/ring-cli/ring-cli
+```
+
 ### From Source
 
 ```bash
@@ -311,9 +331,3 @@ cargo install --path .
 ### From Releases
 
 Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/MichaelCereda/ring-cli/releases) page.
-
-### Homebrew
-
-```bash
-brew install michaelcereda/ring-cli/ring-cli
-```

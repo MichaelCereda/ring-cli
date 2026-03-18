@@ -8,16 +8,22 @@ ring-cli is a CLI generator for teams and operators who need custom command-line
 
 ## Install
 
+**Linux / macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
 ```
 
-Or via Homebrew:
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/MichaelCereda/ring-cli/releases/latest/download/ring-cli-Windows-x86_64.zip -OutFile ring-cli.zip; Expand-Archive ring-cli.zip -DestinationPath $env:LOCALAPPDATA\ring-cli -Force; $env:PATH += ";$env:LOCALAPPDATA\ring-cli"
+```
+
+**Homebrew (macOS / Linux):**
 ```bash
 brew install michaelcereda/ring-cli/ring-cli
 ```
 
-Or build from source:
+**From source:**
 ```bash
 cargo install ring-cli
 ```
