@@ -1,0 +1,14 @@
+{
+  "name": "ring-cli",
+  "version": "1.0.0",
+  "description": "Create CLI tools from scratch or convert MCP tools into shell commands using ring-cli",
+  "author": {
+    "name": "Michael Cereda",
+    "url": "https://github.com/MichaelCereda"
+  },
+  "homepage": "https://github.com/MichaelCereda/ring-cli",
+  "repository": "https://github.com/MichaelCereda/ring-cli",
+  "license": "MIT",
+  "keywords": ["cli", "ring-cli", "mcp", "yaml", "shell"],
+  "skills": "./skills/"
+}

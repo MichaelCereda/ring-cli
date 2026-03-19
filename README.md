@@ -163,7 +163,7 @@ configs:
 
 - **Nested Subcommands** -- Unlimited nesting depth. Organize complex CLIs into natural hierarchies.
 
-- **AI Agent Integration** -- Generate CLIs from natural language using Claude Code's `/ring-cli-builder` skill. Convert MCP server tools into executable shell commands.
+- **AI Agent Integration** -- Generate CLIs from natural language using the ring-cli Claude Code plugin. Convert MCP server tools into executable shell commands.
 
 - **Standards Compliant** -- Respects `NO_COLOR` env var. `--color=always|never|auto` override. `-v` verbose mode. Configurable banners on stderr.
 
@@ -182,7 +182,7 @@ configs:
 - [Getting Started Guide](docs/getting-started.md) -- Detailed walkthrough and configuration format
 - [Configuration Reference](docs/configuration-reference.md) -- Complete YAML schema and field descriptions
 - [OpenAPI Guide](docs/openapi-guide.md) -- OpenAPI specs, flag mapping, authentication, limitations
-- [CLI Builder Guide](docs/ring-cli-builder-guide.md) -- Using Claude Code `/ring-cli-builder` skill
+- [CLI Builder Guide](docs/ring-cli-builder-guide.md) -- Using the `/ring-cli:configuration-builder` Claude Code plugin
 - [Setup Guide](docs/setup-guide.md) -- Installation from source, platform notes, troubleshooting
 
 ## License

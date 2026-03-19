@@ -1,18 +1,34 @@
 # CLI Builder Guide
 
-The `/ring-cli-builder` command for Claude Code helps you create ring-cli configurations from natural language descriptions or convert MCP server tools into standalone shell commands.
+The ring-cli plugin for Claude Code helps you create ring-cli configurations from natural language descriptions or convert MCP server tools into standalone shell commands.
 
 ## Prerequisites
 
 - [ring-cli](../README.md) installed (`ring-cli --version` to check)
 - [Claude Code](https://claude.com/claude-code) CLI
 
+## Installation
+
+Install the plugin in Claude Code:
+
+```bash
+claude /plugin install --plugin-dir https://github.com/MichaelCereda/ring-cli/tree/master/plugin
+```
+
+Or for local development, point Claude Code at the plugin directory:
+
+```bash
+claude --plugin-dir ./plugin
+```
+
+Once installed, the `/ring-cli:configuration-builder` skill is available in every project.
+
 ## Creating a CLI from Scratch
 
-Run `/ring-cli-builder` in Claude Code and describe the commands you need:
+Ask Claude Code to build a CLI and the skill activates automatically, or invoke it directly:
 
 ```
-> /ring-cli-builder
+> /ring-cli:configuration-builder
 > I need a CLI for managing my Kubernetes deployments. Commands:
 > - deploy: deploy to a cluster, needs --env and --image flags
 > - rollback: rollback to previous version, needs --env flag
@@ -78,7 +94,7 @@ k8s <TAB>              # tab completion works
 If you have MCP servers configured in Claude Code, the skill can convert their tools into shell commands.
 
 ```
-> /ring-cli-builder
+> /ring-cli:configuration-builder
 > Convert my MCP tools to a CLI
 ```
 
@@ -185,26 +201,6 @@ After editing, refresh the cached version:
 ```bash
 <alias> refresh-configuration
 ```
-
-## Manual Installation
-
-If you don't have the ring-cli repo cloned, you can install the skill manually:
-
-1. Create the commands directory:
-   ```bash
-   mkdir -p .claude/commands
-   ```
-
-2. Download the skill file:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/.claude/commands/ring-cli-builder.md \
-     -o .claude/commands/ring-cli-builder.md
-   ```
-
-3. Use it in Claude Code:
-   ```
-   > /ring-cli-builder
-   ```
 
 ## Troubleshooting
 
