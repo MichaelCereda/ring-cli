@@ -171,11 +171,13 @@ configs:
 
 ring-cli ships with a [Claude Code](https://claude.com/claude-code) plugin that lets you generate CLI configurations from natural language. Describe the commands you need, and Claude builds the YAML config for you.
 
-**Install the plugin:**
+**Install the skill:**
 
 ```bash
-claude /plugin install --plugin-dir https://github.com/MichaelCereda/ring-cli/tree/master/plugin
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
 ```
+
+This installs the `/ring-cli:configuration-builder` skill into `~/.claude/skills/`, making it available in every project.
 
 **Then use it in any project:**
 

@@ -9,13 +9,15 @@ The ring-cli plugin for Claude Code helps you create ring-cli configurations fro
 
 ## Installation
 
-Install the plugin in Claude Code:
+Install the skill with a single command:
 
 ```bash
-claude /plugin install --plugin-dir https://github.com/MichaelCereda/ring-cli/tree/master/plugin
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
 ```
 
-Or for local development, point Claude Code at the plugin directory:
+This downloads the skill into `~/.claude/skills/configuration-builder/` so it's available in every project.
+
+For local development, you can also point Claude Code at the plugin directory:
 
 ```bash
 claude --plugin-dir ./plugin

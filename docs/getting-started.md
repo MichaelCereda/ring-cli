@@ -334,10 +334,18 @@ Pre-built binaries for Linux, macOS, and Windows are available on the [Releases]
 
 ## Using with Claude Code
 
-If you use [Claude Code](https://claude.com/claude-code), the `/ring-cli-builder` command helps you create ring-cli configs from natural language descriptions or convert MCP server tools into CLI commands.
+If you use [Claude Code](https://claude.com/claude-code), ring-cli ships with a skill that generates configs from natural language.
+
+**Install the skill:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
+```
+
+**Use it in any project:**
 
 ```
-> /ring-cli-builder
+> /ring-cli:configuration-builder
 > I need a CLI for managing my Docker containers -- start, stop, logs, and deploy with an --env flag
 ```
 
