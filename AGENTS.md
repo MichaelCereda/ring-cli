@@ -1,6 +1,6 @@
-# Ring-CLI Agent Instructions
+# Stampo Agent Instructions
 
-Ring-CLI generates CLIs from YAML configs and OpenAPI specs. See [README.md](README.md) for features and [docs/](docs/) for full documentation.
+Stampo generates CLIs from YAML configs and OpenAPI specs. See [README.md](README.md) for features and [docs/](docs/) for full documentation.
 
 ## Build & Test
 
@@ -22,7 +22,7 @@ src/
   cli.rs           -- CLI construction (clap builder API), command execution
   config.rs        -- Config loading, validation, placeholder/env-var replacement
   models.rs        -- YAML data structures (Configuration, Command, Flag, CmdType)
-  cache.rs         -- Trusted config storage (~/.ring-cli/aliases/), SHA-256 hashing
+  cache.rs         -- Trusted config storage (~/.stampo/aliases/), SHA-256 hashing
   style.rs         -- Color output (ANSI, NO_COLOR, --color flag)
   errors.rs        -- Error types
   openapi/
@@ -43,19 +43,19 @@ docs/
 ## Architecture
 
 - **Dynamic CLI from YAML** -- commands are loaded at runtime, must use clap builder API (not derive)
-- **Two modes:** installer (`ring-cli init`) and alias (`ring-cli --alias-mode <name>`)
+- **Two modes:** installer (`stampo init`) and alias (`stampo --alias-mode <name>`)
 - **OpenAPI support:** specs transformed to Configuration structs at init time, commands use curl/wget
-- **Trust model:** configs cached with SHA-256 in `~/.ring-cli/aliases/<name>/`
+- **Trust model:** configs cached with SHA-256 in `~/.stampo/aliases/<name>/`
 - **Zero network footprint:** no HTTP client in the binary, curl/wget for external tools only
 - **Placeholder syntax:** `${{flag_name}}` and `${{env.VAR_NAME}}`
 - **Shell support:** bash, zsh, fish, powershell (functions + tab completion)
-- **Output:** stdout for command output only, stderr for all ring-cli messages
+- **Output:** stdout for command output only, stderr for all stampo messages
 - **POSIX-safe:** ASCII-only output, no emojis
 
 ## Code Conventions
 
 - Each command must have exactly one of `cmd` or `subcommands`, not both
-- Error handling: `RingError` enum with thiserror, `anyhow` at top level
+- Error handling: `StampoError` enum with thiserror, `anyhow` at top level
 - YAML parsing: `serde-saphyr` (panic-free, maintained)
 - OpenAPI parsing: `openapiv3` (pure Rust, no network)
 - Colors respect `NO_COLOR` env var and `--color` flag

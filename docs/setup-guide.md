@@ -1,10 +1,10 @@
-# Ring-CLI Setup Guide
+# Stampo Setup Guide
 
-How to install ring-cli and create configuration files.
+How to install stampo and create configuration files.
 
 ---
 
-## Part 1: Installing Ring-CLI
+## Part 1: Installing Stampo
 
 ### Prerequisites
 
@@ -24,23 +24,23 @@ How to install ring-cli and create configuration files.
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/MichaelCereda/ring-cli.git
-   cd ring-cli
+   git clone https://github.com/MichaelCereda/stampo.git
+   cd stampo
    ```
 
 2. **Build and install the release binary:**
    ```bash
    cargo install --path .
    ```
-   This installs `ring-cli` to `~/.cargo/bin/ring-cli`.
+   This installs `stampo` to `~/.cargo/bin/stampo`.
 
 3. **Verify the installation:**
    ```bash
-   ring-cli --version
-   # Expected output: ring-cli 2.2.0
+   stampo --version
+   # Expected output: stampo 2.2.0
    ```
 
-4. **If `ring-cli` is not found**, ensure `~/.cargo/bin` is in your `PATH`:
+4. **If `stampo` is not found**, ensure `~/.cargo/bin` is in your `PATH`:
    ```bash
    export PATH="$HOME/.cargo/bin:$PATH"
    ```
@@ -49,14 +49,14 @@ How to install ring-cli and create configuration files.
 
 After a release is published:
 ```bash
-brew install michaelcereda/ring-cli/ring-cli
+brew install michaelcereda/stampo/stampo
 ```
 
 ---
 
 ## Part 2: Creating Configuration Files
 
-Ring-CLI reads YAML configuration files that define commands, flags, and subcommands. Each file defines one named group of commands.
+Stampo reads YAML configuration files that define commands, flags, and subcommands. Each file defines one named group of commands.
 
 ### YAML Schema Reference
 
@@ -130,7 +130,7 @@ Inside `run` strings:
 
 ### Validation Rules
 
-These rules are enforced at parse time. Violating them will cause `ring-cli init` or config loading to fail:
+These rules are enforced at parse time. Violating them will cause `stampo init` or config loading to fail:
 
 1. `version` must be present (string `"2.0"`).
 2. `name` must be present and non-empty.
@@ -154,7 +154,7 @@ configs:
   - monitoring.yml
 ```
 
-Use with: `ring-cli init --alias ops --references .ring-cli/references.yml`
+Use with: `stampo init --alias ops --references .stampo/references.yml`
 
 ---
 
@@ -163,19 +163,19 @@ Use with: `ring-cli init --alias ops --references .ring-cli/references.yml`
 ### Basic Setup (single config)
 
 ```bash
-ring-cli init --alias <alias-name> --config-path <path-to-config.yml>
+stampo init --alias <alias-name> --config-path <path-to-config.yml>
 ```
 
 This does four things:
 1. Reads and validates the YAML config.
-2. Copies it to `~/.ring-cli/aliases/<alias-name>/` with a SHA-256 hash.
+2. Copies it to `~/.stampo/aliases/<alias-name>/` with a SHA-256 hash.
 3. Appends a shell function to all detected shell config files (e.g., `~/.zshrc`).
 4. Installs tab completion hooks for all detected shells.
 
 ### Multiple Configs Per Alias
 
 ```bash
-ring-cli init --alias infra \
+stampo init --alias infra \
   --config-path deploy.yml \
   --config-path db.yml \
   --config-path monitoring.yml
@@ -191,7 +191,7 @@ infra monitoring status
 ### With Automatic Update Checking
 
 ```bash
-ring-cli init --alias infra \
+stampo init --alias infra \
   --config-path deploy.yml \
   --check-for-updates
 ```
@@ -203,7 +203,7 @@ This installs a shell startup hook that checks if source config files have chang
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--alias <NAME>` | | **Required.** Shell alias name. Alphanumeric, hyphens, underscores only. |
-| `--config-path <PATH>` | | Path to a YAML config file. Repeatable. If omitted, creates a default config at `~/.ring-cli/configurations/<alias>.yml`. |
+| `--config-path <PATH>` | | Path to a YAML config file. Repeatable. If omitted, creates a default config at `~/.stampo/configurations/<alias>.yml`. |
 | `--references <PATH>` | | Path to a references file listing config paths (alternative to `--config-path`). |
 | `--force` | `-f` | Overwrite existing alias. Cleans old entries from all shell configs before re-installing. |
 | `--warn-only-on-conflict` | | Downgrade name-conflict errors to warnings. |
@@ -241,7 +241,7 @@ infra deploy staging --branch main
 
 ## Part 5: Workflow — Step by Step
 
-Follow these steps in order when setting up ring-cli:
+Follow these steps in order when setting up stampo:
 
 ### Step 1: Determine what commands the user needs
 
@@ -267,7 +267,7 @@ For each group of related commands, create one `.yml` file. Use the schema above
 
 ```bash
 # Dry-run: init will validate the YAML and report errors
-ring-cli init --alias test-alias --config-path your-config.yml
+stampo init --alias test-alias --config-path your-config.yml
 ```
 
 If validation fails, the error message includes the path to the problematic command (e.g., `mycli > deploy > broken`).
@@ -275,7 +275,7 @@ If validation fails, the error message includes the path to the problematic comm
 ### Step 4: Install the alias
 
 ```bash
-ring-cli init --alias <chosen-name> \
+stampo init --alias <chosen-name> \
   --config-path <file1.yml> \
   --config-path <file2.yml> \
   --check-for-updates
@@ -366,7 +366,7 @@ commands:
 
 **Install:**
 ```bash
-ring-cli init --alias ops --config-path deploy.yml --config-path db.yml --check-for-updates
+stampo init --alias ops --config-path deploy.yml --config-path db.yml --check-for-updates
 ```
 
 **Usage:**
@@ -413,7 +413,7 @@ commands:
 
 **Install:**
 ```bash
-ring-cli init --alias myapi --config-path api.yml
+stampo init --alias myapi --config-path api.yml
 ```
 
 **Usage:**
@@ -429,8 +429,8 @@ myapi api users create --payload '{"name":"Alice","email":"alice@example.com"}'
 
 | Problem | Solution |
 |---------|----------|
-| `ring-cli: command not found` | Add `~/.cargo/bin` to PATH, or use full path `~/.cargo/bin/ring-cli` |
-| `Alias '<name>' already exists. Use --force to overwrite.` | The alias is already installed. Pass `--force` to re-init: `ring-cli init --alias <name> --force ...` |
+| `stampo: command not found` | Add `~/.cargo/bin` to PATH, or use full path `~/.cargo/bin/stampo` |
+| `Alias '<name>' already exists. Use --force to overwrite.` | The alias is already installed. Pass `--force` to re-init: `stampo init --alias <name> --force ...` |
 | `Config name '<x>' is used by both...` | Two config files have the same `name`. Rename one, or pass `--warn-only-on-conflict`. |
 | `Either 'cmd' or 'subcommands' must be present` | A command has neither `cmd` nor `subcommands`. Add one. |
 | `Only 'cmd' or 'subcommands' should be present, not both` | A command has both. Remove one. |

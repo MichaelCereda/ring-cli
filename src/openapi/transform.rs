@@ -1,4 +1,4 @@
-//! OpenAPI 3.0 specification to ring-cli `Configuration` transformation.
+//! OpenAPI 3.0 specification to stampo `Configuration` transformation.
 //!
 //! # Design
 //!
@@ -35,7 +35,7 @@ use crate::openapi::parser::extract_base_url;
 /// # Examples
 ///
 /// ```
-/// use ring_cli::openapi::transform::security_scheme_to_env_var;
+/// use stampo::openapi::transform::security_scheme_to_env_var;
 /// assert_eq!(security_scheme_to_env_var("bearerAuth"), "BEARER_AUTH_TOKEN");
 /// assert_eq!(security_scheme_to_env_var("apiKey"), "API_KEY_TOKEN");
 /// ```
@@ -122,7 +122,7 @@ fn extract_auth_headers(spec: &OpenAPI) -> Vec<(String, String)> {
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Transform an OpenAPI spec into a ring-cli [`Configuration`].
+/// Transform an OpenAPI spec into a stampo [`Configuration`].
 ///
 /// `tool` must be either `"curl"` or `"wget"`.
 /// `fallback_name` is used when the spec title is empty.
@@ -140,7 +140,7 @@ pub fn transform_spec(
     transform_spec_with_warnings(spec, tool, fallback_name, &mut warnings)
 }
 
-/// Transform an OpenAPI spec into a ring-cli [`Configuration`], collecting
+/// Transform an OpenAPI spec into a stampo [`Configuration`], collecting
 /// non-fatal diagnostic messages into `warnings`.
 ///
 /// # Errors
@@ -365,7 +365,7 @@ pub fn transform_spec_with_warnings(
 /// # Examples
 ///
 /// ```
-/// use ring_cli::openapi::transform::summarize_warnings;
+/// use stampo::openapi::transform::summarize_warnings;
 /// let warnings = vec![
 ///     "Skipped: /xml-only GET - no JSON content type".to_string(),
 ///     "Best-effort: /upload POST - multipart/form-data".to_string(),
@@ -429,7 +429,7 @@ pub fn summarize_warnings(warnings: &[String]) -> String {
 // Conversion helpers — public so callers and tests can use them directly.
 // ---------------------------------------------------------------------------
 
-/// Map an HTTP method and item context to a ring-cli verb name.
+/// Map an HTTP method and item context to a stampo verb name.
 ///
 /// `is_item` is `true` when the last raw path segment is a `{param}`.
 pub fn method_to_verb(method: &str, is_item: bool) -> &'static str {
@@ -717,7 +717,7 @@ impl TreeNode {
         }
     }
 
-    /// Materialise this tree node into a ring-cli [`Command`].
+    /// Materialise this tree node into a stampo [`Command`].
     fn into_command(self) -> Command {
         let has_children = !self.children.is_empty();
         let has_verbs = !self.verbs.is_empty();

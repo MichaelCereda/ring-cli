@@ -5,7 +5,7 @@ use std::path::PathBuf;
 fn default_config_dir() -> PathBuf {
     dirs::home_dir()
         .expect("Unable to determine home directory")
-        .join(".ring-cli/configurations")
+        .join(".stampo/configurations")
 }
 
 pub(crate) fn validate_alias_name(name: &str) -> Result<(), anyhow::Error> {
@@ -50,7 +50,7 @@ fn create_default_config(path: &std::path::Path) -> Result<(), anyhow::Error> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let template = r#"# Ring-CLI Configuration
+    let template = r#"# Stampo Configuration
 version: "2.0"
 name: "mycli"
 description: "My custom CLI"

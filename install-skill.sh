@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-# install-skill.sh — installs the ring-cli configuration-builder skill for Claude Code
-# Usage: curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
+# install-skill.sh — installs the stampo configuration-builder skill for Claude Code
+# Usage: curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install-skill.sh | sh
 
-REPO="MichaelCereda/ring-cli"
+REPO="MichaelCereda/stampo"
 BRANCH="master"
 SKILL_NAME="configuration-builder"
 SKILLS_DIR="$HOME/.claude/skills/$SKILL_NAME"
@@ -24,7 +24,7 @@ need_cmd mkdir
 
 SKILL_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/plugin/skills/$SKILL_NAME/SKILL.md"
 
-info "Installing ring-cli skill: $SKILL_NAME"
+info "Installing stampo skill: $SKILL_NAME"
 info "Target: $SKILLS_DIR/SKILL.md"
 
 mkdir -p "$SKILLS_DIR"
@@ -32,8 +32,8 @@ mkdir -p "$SKILLS_DIR"
 if curl -fsSL "$SKILL_URL" -o "$SKILLS_DIR/SKILL.md"; then
     info "Skill installed successfully!"
     info ""
-    info "The /ring-cli:configuration-builder skill is now available in Claude Code."
-    info "Use it in any project to generate ring-cli configurations from natural language."
+    info "The /stampo:configuration-builder skill is now available in Claude Code."
+    info "Use it in any project to generate stampo configurations from natural language."
 else
     error "Failed to download skill from $SKILL_URL"
 fi

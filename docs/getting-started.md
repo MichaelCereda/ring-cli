@@ -1,6 +1,6 @@
 # Getting Started Guide
 
-Ring-CLI generates custom command-line tools from YAML configuration files. Define your commands, flags, and subcommands in YAML, then install them as a shell command with automatic tab completion, a trust-based security model, and color output.
+Stampo generates custom command-line tools from YAML configuration files. Define your commands, flags, and subcommands in YAML, then install them as a shell command with automatic tab completion, a trust-based security model, and color output.
 
 ## Getting Started
 
@@ -11,10 +11,10 @@ Ring-CLI generates custom command-line tools from YAML configuration files. Defi
 cargo install --path .
 
 # Or via Homebrew (macOS/Linux)
-brew install michaelcereda/ring-cli/ring-cli
+brew install michaelcereda/stampo/stampo
 ```
 
-If `ring-cli` is not found after install, add `~/.cargo/bin` to your PATH:
+If `stampo` is not found after install, add `~/.cargo/bin` to your PATH:
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
@@ -41,7 +41,7 @@ commands:
 ### 3. Init an alias
 
 ```bash
-ring-cli init --alias ops --config-path deploy.yml
+stampo init --alias ops --config-path deploy.yml
 ```
 
 This validates the YAML, caches it securely, installs a shell function, and sets up tab completion.
@@ -117,7 +117,7 @@ A command must have either `cmd` or `subcommands`, not both.
 An alias can combine multiple configuration files. Each config's `name` becomes a top-level subcommand:
 
 ```bash
-ring-cli init --alias infra --config-path deploy.yml --config-path db.yml
+stampo init --alias infra --config-path deploy.yml --config-path db.yml
 ```
 
 ```
@@ -132,7 +132,7 @@ If two configs use the same `name`, init will error. Use `--warn-only-on-conflic
 Instead of listing configs individually, point to a references file:
 
 ```bash
-ring-cli init --alias ops --references .ring-cli/references.yml
+stampo init --alias ops --references .stampo/references.yml
 ```
 
 `references.yml`:
@@ -222,9 +222,9 @@ configs:
 
 ## Security: Trust System
 
-ring-cli never runs commands from a config file without explicit trust.
+stampo never runs commands from a config file without explicit trust.
 
-1. **`ring-cli init`** reads the YAML, validates it, and stores a trusted copy with a SHA-256 hash in `~/.ring-cli/aliases/<name>/`. The config is auto-trusted since you just pointed to it.
+1. **`stampo init`** reads the YAML, validates it, and stores a trusted copy with a SHA-256 hash in `~/.stampo/aliases/<name>/`. The config is auto-trusted since you just pointed to it.
 
 2. **Your alias** runs from the cached/trusted config, not the original YAML file.
 
@@ -235,7 +235,7 @@ ring-cli never runs commands from a config file without explicit trust.
 ### Cache Structure
 
 ```
-~/.ring-cli/
+~/.stampo/
   aliases/
     <alias-name>/
       <config-name>.yml   # trusted copy of each config
@@ -248,11 +248,11 @@ ring-cli never runs commands from a config file without explicit trust.
 - **`NO_COLOR` env var**: Set `NO_COLOR=1` to disable all color ([no-color.org](https://no-color.org) standard).
 - **`--color` flag**: Override with `--color=always`, `--color=never`, or `--color=auto` (default).
 
-Only ring-cli's own messages (errors, warnings, success) are colored. Command output is always passed through unmodified.
+Only stampo's own messages (errors, warnings, success) are colored. Command output is always passed through unmodified.
 
 ## Tab Completion
 
-Tab completion is installed automatically during `ring-cli init` for all detected shells:
+Tab completion is installed automatically during `stampo init` for all detected shells:
 
 - **Bash** and **Zsh** — shell functions with `compdef`/`complete -F` bindings
 - **Fish** — `complete -c` directives
@@ -264,10 +264,10 @@ After running `refresh-configuration`, restart your shell to pick up completion 
 
 ## CLI Reference
 
-### `ring-cli init`
+### `stampo init`
 
 ```
-ring-cli init --alias <NAME> [OPTIONS]
+stampo init --alias <NAME> [OPTIONS]
 ```
 
 | Flag                      | Short | Description                                          |
@@ -279,7 +279,7 @@ ring-cli init --alias <NAME> [OPTIONS]
 | `--warn-only-on-conflict` |       | Warn instead of error on config name conflicts.      |
 | `--check-for-updates`    |       | Check for config changes on every new terminal.      |
 
-`--config-path` and `--references` are mutually exclusive. If neither is given, a default config is created at `~/.ring-cli/configurations/<alias>.yml`.
+`--config-path` and `--references` are mutually exclusive. If neither is given, a default config is created at `~/.stampo/configurations/<alias>.yml`.
 
 ### Alias Commands
 
@@ -303,52 +303,52 @@ Once installed, your alias supports:
 ### Quick Install (Linux / macOS)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install.sh | sh
 ```
 
 ### Quick Install (Windows PowerShell)
 
 ```powershell
-irm https://github.com/MichaelCereda/ring-cli/releases/latest/download/ring-cli-Windows-x86_64.zip -OutFile ring-cli.zip; Expand-Archive ring-cli.zip -DestinationPath $env:LOCALAPPDATA\ring-cli -Force; $env:PATH += ";$env:LOCALAPPDATA\ring-cli"
+irm https://github.com/MichaelCereda/stampo/releases/latest/download/stampo-Windows-x86_64.zip -OutFile stampo.zip; Expand-Archive stampo.zip -DestinationPath $env:LOCALAPPDATA\stampo -Force; $env:PATH += ";$env:LOCALAPPDATA\stampo"
 ```
 
-To make it permanent, add `$env:LOCALAPPDATA\ring-cli` to your system PATH.
+To make it permanent, add `$env:LOCALAPPDATA\stampo` to your system PATH.
 
 ### Homebrew
 
 ```bash
-brew install michaelcereda/ring-cli/ring-cli
+brew install michaelcereda/stampo/stampo
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/MichaelCereda/ring-cli.git
-cd ring-cli
+git clone https://github.com/MichaelCereda/stampo.git
+cd stampo
 cargo install --path .
 ```
 
 ### From Releases
 
-Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/MichaelCereda/ring-cli/releases) page.
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/MichaelCereda/stampo/releases) page.
 
 ## Using with Claude Code
 
-If you use [Claude Code](https://claude.com/claude-code), ring-cli ships with a skill that generates configs from natural language.
+If you use [Claude Code](https://claude.com/claude-code), stampo ships with a skill that generates configs from natural language.
 
 **Install the skill:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install-skill.sh | sh
 ```
 
 **Use it in any project:**
 
 ```
-> /ring-cli:configuration-builder
+> /stampo:configuration-builder
 > I need a CLI for managing my Docker containers -- start, stop, logs, and deploy with an --env flag
 ```
 
-The skill generates a valid ring-cli config, shows it for review, and optionally installs it as a shell alias. It can also read your MCP server configurations and convert those tools into standalone shell commands.
+The skill generates a valid stampo config, shows it for review, and optionally installs it as a shell alias. It can also read your MCP server configurations and convert those tools into standalone shell commands.
 
-See the [CLI Builder Guide](ring-cli-builder-guide.md) for details.
+See the [CLI Builder Guide](stampo-builder-guide.md) for details.

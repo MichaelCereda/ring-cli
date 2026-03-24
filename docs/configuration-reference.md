@@ -1,10 +1,10 @@
 # Configuration Reference
 
-This document describes the complete YAML schema for ring-cli configuration files. Learn how to structure commands, flags, and variables to create powerful CLI tools.
+This document describes the complete YAML schema for stampo configuration files. Learn how to structure commands, flags, and variables to create powerful CLI tools.
 
 ## Overview
 
-Ring-cli configurations are YAML files (version 2.0) that define a named group of commands. Each command can have flags, execute shell operations, or nest further subcommands. Configurations support placeholder substitution for runtime values and environment variables.
+Stampo configurations are YAML files (version 2.0) that define a named group of commands. Each command can have flags, execute shell operations, or nest further subcommands. Configurations support placeholder substitution for runtime values and environment variables.
 
 ## Configuration Format
 
@@ -61,7 +61,7 @@ Each command can be a leaf operation (with flags and actions) or a container (wi
 
 ### Command Validation
 
-Ring-cli validates every command recursively:
+Stampo validates every command recursively:
 
 ```yaml
 commands:
@@ -197,7 +197,7 @@ Usage: `myalias command -b main -f --message "Release v1.0"`
 
 ## Commands: CmdType (run)
 
-The `cmd` field specifies actions to execute. Currently, ring-cli supports shell command execution via `run`.
+The `cmd` field specifies actions to execute. Currently, stampo supports shell command execution via `run`.
 
 ### Run: Execute Shell Commands
 
@@ -266,7 +266,7 @@ The `|` (literal block scalar) preserves newlines. The shell interprets the enti
 
 ## Variable Substitution
 
-Ring-cli supports two types of placeholders for runtime values and environment variables.
+Stampo supports two types of placeholders for runtime values and environment variables.
 
 ### Flag Placeholders
 
@@ -320,7 +320,7 @@ myalias deploy --version 2.5
 - Flag placeholder: `${{flag_name}}` (flag name as written in the config, not the long form)
 - Environment variable: `${{env.VAR_NAME}}` (case-sensitive)
 - Both are substituted before shell execution
-- If a flag is not provided but is referenced in the command, ring-cli errors with a clear message
+- If a flag is not provided but is referenced in the command, stampo errors with a clear message
 - If an environment variable is not set, the placeholder is passed as-is to the shell (which may cause errors)
 
 ### Escaping Placeholders
@@ -342,7 +342,7 @@ An alias can combine multiple configuration files. Each config's `name` field be
 ### Via Command Line
 
 ```bash
-ring-cli init --alias ops --config-path deploy.yml --config-path db.yml --config-path monitoring.yml
+stampo init --alias ops --config-path deploy.yml --config-path db.yml --config-path monitoring.yml
 ```
 
 Usage:
@@ -358,7 +358,7 @@ ops monitoring status        # from monitoring.yml (name: "monitoring")
 If two configs use the same `name`, init fails:
 
 ```bash
-ring-cli init --alias ops --config-path api-v1.yml --config-path api-v2.yml
+stampo init --alias ops --config-path api-v1.yml --config-path api-v2.yml
 # Error: Config name conflict: "api" (from api-v1.yml and api-v2.yml)
 ```
 
@@ -368,7 +368,7 @@ ring-cli init --alias ops --config-path api-v1.yml --config-path api-v2.yml
 2. Use `--warn-only-on-conflict` to downgrade the error to a warning (last config wins):
 
 ```bash
-ring-cli init --alias ops --config-path api-v1.yml --config-path api-v2.yml --warn-only-on-conflict
+stampo init --alias ops --config-path api-v1.yml --config-path api-v2.yml --warn-only-on-conflict
 ```
 
 ## References File Format
@@ -376,7 +376,7 @@ ring-cli init --alias ops --config-path api-v1.yml --config-path api-v2.yml --wa
 Instead of listing configs individually, create a references file that lists them:
 
 ```bash
-ring-cli init --alias ops --references .ring-cli/references.yml
+stampo init --alias ops --references .stampo/references.yml
 ```
 
 ### References File Schema
@@ -394,19 +394,19 @@ configs:
 Paths in the references file are resolved relative to the file's own location:
 
 ```
-.ring-cli/
+.stampo/
   references.yml        # This file
-  deploy.yml            # .ring-cli/deploy.yml
+  deploy.yml            # .stampo/deploy.yml
   schemas/
-    db.yml              # .ring-cli/schemas/db.yml
+    db.yml              # .stampo/schemas/db.yml
 ```
 
 In `references.yml`:
 
 ```yaml
 configs:
-  - deploy.yml           # resolves to .ring-cli/deploy.yml
-  - schemas/db.yml       # resolves to .ring-cli/schemas/db.yml
+  - deploy.yml           # resolves to .stampo/deploy.yml
+  - schemas/db.yml       # resolves to .stampo/schemas/db.yml
 ```
 
 ### OpenAPI Entries
@@ -856,7 +856,7 @@ Then set `export API_TOKEN="my-secret-token"` before using the command.
 
 ## Schema Validation
 
-Ring-cli validates configs at init time and reports errors clearly. Common validation errors:
+Stampo validates configs at init time and reports errors clearly. Common validation errors:
 
 ### Missing Required Fields
 

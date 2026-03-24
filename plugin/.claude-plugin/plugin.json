@@ -1,14 +1,14 @@
 {
-  "name": "ring-cli",
+  "name": "stampo",
   "version": "1.0.0",
-  "description": "Create CLI tools from scratch or convert MCP tools into shell commands using ring-cli",
+  "description": "Create CLI tools from scratch or convert MCP tools into shell commands using stampo",
   "author": {
     "name": "Michael Cereda",
     "url": "https://github.com/MichaelCereda"
   },
-  "homepage": "https://github.com/MichaelCereda/ring-cli",
-  "repository": "https://github.com/MichaelCereda/ring-cli",
+  "homepage": "https://github.com/MichaelCereda/stampo",
+  "repository": "https://github.com/MichaelCereda/stampo",
   "license": "MIT",
-  "keywords": ["cli", "ring-cli", "mcp", "yaml", "shell"],
+  "keywords": ["cli", "stampo", "mcp", "yaml", "shell"],
   "skills": "./skills/"
 }

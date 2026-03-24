@@ -1,12 +1,12 @@
 #!/bin/sh
 set -e
 
-# install.sh — platform-detecting installer for ring-cli
-# Usage: curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+# install.sh — platform-detecting installer for stampo
+# Usage: curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install.sh | sh
 # Or:    INSTALL_DIR=/usr/local/bin sh install.sh
 
-REPO="MichaelCereda/ring-cli"
-BINARY="ring-cli"
+REPO="MichaelCereda/stampo"
+BINARY="stampo"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 # ---------------------------------------------------------------------------
@@ -56,11 +56,11 @@ resolve_archive_name() {
     _arch="$2"
 
     case "${_os}-${_arch}" in
-        Linux-x86_64)  printf 'ring-cli-Linux-x86_64-musl.tar.gz'  ;;
-        Linux-aarch64) printf 'ring-cli-Linux-aarch64-musl.tar.gz' ;;
-        Linux-arm)     printf 'ring-cli-Linux-arm-musl.tar.gz'     ;;
-        Darwin-x86_64) printf 'ring-cli-Darwin-x86_64.tar.gz'      ;;
-        Darwin-aarch64)printf 'ring-cli-Darwin-aarch64.tar.gz'     ;;
+        Linux-x86_64)  printf 'stampo-Linux-x86_64-musl.tar.gz'  ;;
+        Linux-aarch64) printf 'stampo-Linux-aarch64-musl.tar.gz' ;;
+        Linux-arm)     printf 'stampo-Linux-arm-musl.tar.gz'     ;;
+        Darwin-x86_64) printf 'stampo-Darwin-x86_64.tar.gz'      ;;
+        Darwin-aarch64)printf 'stampo-Darwin-aarch64.tar.gz'     ;;
         *)             error "No release archive available for ${_os}-${_arch}." ;;
     esac
 }
@@ -183,11 +183,11 @@ main() {
     cp "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
     chmod +x "${INSTALL_DIR}/${BINARY}"
 
-    info "ring-cli ${TAG} installed to ${INSTALL_DIR}/${BINARY}"
+    info "stampo ${TAG} installed to ${INSTALL_DIR}/${BINARY}"
 
     check_path "$INSTALL_DIR"
 
-    info "Installation complete. Run 'ring-cli --help' to get started."
+    info "Installation complete. Run 'stampo --help' to get started."
 }
 
 main "$@"

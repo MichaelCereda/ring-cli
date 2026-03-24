@@ -15,15 +15,15 @@ pub(crate) struct ShellConfig {
 }
 
 pub(crate) fn alias_line_bash_zsh(alias_name: &str) -> String {
-    format!("{alias_name}() {{ ring-cli --alias-mode {alias_name} \"$@\"; }} # ring-cli")
+    format!("{alias_name}() {{ stampo --alias-mode {alias_name} \"$@\"; }} # stampo")
 }
 
 pub(crate) fn alias_line_fish(alias_name: &str) -> String {
-    format!("function {alias_name}; ring-cli --alias-mode {alias_name} $argv; end # ring-cli")
+    format!("function {alias_name}; stampo --alias-mode {alias_name} $argv; end # stampo")
 }
 
 pub(crate) fn alias_line_powershell(alias_name: &str) -> String {
-    format!("function {alias_name} {{ ring-cli --alias-mode {alias_name} @args }} # ring-cli")
+    format!("function {alias_name} {{ stampo --alias-mode {alias_name} @args }} # stampo")
 }
 
 pub(crate) fn alias_exists(file_content: &str, alias_name: &str, kind: ShellKind) -> bool {
@@ -126,11 +126,11 @@ pub(crate) fn install_update_check(alias_name: &str) -> Result<(), anyhow::Error
     let shells = detect_shell_configs();
     for shell in &shells {
         let content = fs::read_to_string(&shell.path)?;
-        let marker = format!("# ring-cli-update-check:{alias_name}");
+        let marker = format!("# stampo-update-check:{alias_name}");
         if content.contains(&marker) {
             continue;
         }
-        let hook = format!("ring-cli --check-updates {alias_name} {marker}");
+        let hook = format!("stampo --check-updates {alias_name} {marker}");
         let mut file = fs::OpenOptions::new().append(true).open(&shell.path)?;
         use std::io::Write;
         writeln!(file, "{}", hook)?;
@@ -139,9 +139,9 @@ pub(crate) fn install_update_check(alias_name: &str) -> Result<(), anyhow::Error
 }
 
 pub(crate) fn clean_alias_lines(content: &str, alias_name: &str, kind: ShellKind) -> String {
-    let ring_cli_marker = "# ring-cli";
-    let completion_marker = format!("# ring-cli-completions:{alias_name}");
-    let update_marker = format!("# ring-cli-update-check:{alias_name}");
+    let stampo_marker = "# stampo";
+    let completion_marker = format!("# stampo-completions:{alias_name}");
+    let update_marker = format!("# stampo-update-check:{alias_name}");
 
     let filtered: Vec<&str> = content
         .lines()
@@ -150,15 +150,15 @@ pub(crate) fn clean_alias_lines(content: &str, alias_name: &str, kind: ShellKind
                 ShellKind::BashZsh => {
                     (line.contains(&format!("alias {alias_name}="))
                         || line.contains(&format!("{alias_name}()")))
-                        && line.contains(ring_cli_marker)
+                        && line.contains(stampo_marker)
                 }
                 ShellKind::Fish => {
                     (line.contains(&format!("alias {alias_name} "))
                         || line.contains(&format!("function {alias_name};")))
-                        && line.contains(ring_cli_marker)
+                        && line.contains(stampo_marker)
                 }
                 ShellKind::PowerShell => {
-                    line.contains(&format!("function {alias_name}")) && line.contains(ring_cli_marker)
+                    line.contains(&format!("function {alias_name}")) && line.contains(stampo_marker)
                 }
             };
             let is_completion_line = line.contains(&completion_marker);
@@ -188,7 +188,7 @@ pub(crate) fn clean_alias_from_shells(alias_name: &str) -> Result<(), anyhow::Er
 
 pub(crate) fn remove_update_check(alias_name: &str) -> Result<(), anyhow::Error> {
     let shells = detect_shell_configs();
-    let marker = format!("# ring-cli-update-check:{alias_name}");
+    let marker = format!("# stampo-update-check:{alias_name}");
     for shell in &shells {
         let content = fs::read_to_string(&shell.path)?;
         if !content.contains(&marker) {
@@ -214,7 +214,7 @@ pub(crate) fn install_completions(alias_name: &str) -> Result<(), anyhow::Error>
     let shells = detect_shell_configs();
     for shell in &shells {
         let content = fs::read_to_string(&shell.path)?;
-        let completion_marker = format!("# ring-cli-completions:{alias_name}");
+        let completion_marker = format!("# stampo-completions:{alias_name}");
         if content.contains(&completion_marker) {
             continue;
         }
@@ -222,22 +222,22 @@ pub(crate) fn install_completions(alias_name: &str) -> Result<(), anyhow::Error>
             ShellKind::BashZsh => {
                 if shell.display_name.contains("zsh") {
                     format!(
-                        "eval \"$(ring-cli --generate-completions zsh {alias_name})\" {completion_marker}"
+                        "eval \"$(stampo --generate-completions zsh {alias_name})\" {completion_marker}"
                     )
                 } else {
                     format!(
-                        "eval \"$(ring-cli --generate-completions bash {alias_name})\" {completion_marker}"
+                        "eval \"$(stampo --generate-completions bash {alias_name})\" {completion_marker}"
                     )
                 }
             }
             ShellKind::Fish => {
                 format!(
-                    "ring-cli --generate-completions fish {alias_name} | source {completion_marker}"
+                    "stampo --generate-completions fish {alias_name} | source {completion_marker}"
                 )
             }
             ShellKind::PowerShell => {
                 format!(
-                    "ring-cli --generate-completions powershell {alias_name} | Invoke-Expression {completion_marker}"
+                    "stampo --generate-completions powershell {alias_name} | Invoke-Expression {completion_marker}"
                 )
             }
         };
@@ -255,13 +255,13 @@ mod tests {
     #[test]
     fn test_bash_alias_line() {
         let line = alias_line_bash_zsh("my-tool");
-        assert_eq!(line, "my-tool() { ring-cli --alias-mode my-tool \"$@\"; } # ring-cli");
+        assert_eq!(line, "my-tool() { stampo --alias-mode my-tool \"$@\"; } # stampo");
     }
 
     #[test]
     fn test_fish_alias_line() {
         let line = alias_line_fish("my-tool");
-        assert_eq!(line, "function my-tool; ring-cli --alias-mode my-tool $argv; end # ring-cli");
+        assert_eq!(line, "function my-tool; stampo --alias-mode my-tool $argv; end # stampo");
     }
 
     #[test]
@@ -269,61 +269,61 @@ mod tests {
         let line = alias_line_powershell("my-tool");
         assert_eq!(
             line,
-            "function my-tool { ring-cli --alias-mode my-tool @args } # ring-cli"
+            "function my-tool { stampo --alias-mode my-tool @args } # stampo"
         );
     }
 
     #[test]
     fn test_alias_already_exists_bash() {
         // New function format
-        let content = "# my stuff\nmy-tool() { ring-cli --alias-mode my-tool \"$@\"; } # ring-cli\n";
+        let content = "# my stuff\nmy-tool() { stampo --alias-mode my-tool \"$@\"; } # stampo\n";
         assert!(alias_exists(content, "my-tool", ShellKind::BashZsh));
         assert!(!alias_exists(content, "other-tool", ShellKind::BashZsh));
         // Old alias format still detected
-        let old = "alias my-tool='ring-cli --alias-mode my-tool' # ring-cli\n";
+        let old = "alias my-tool='stampo --alias-mode my-tool' # stampo\n";
         assert!(alias_exists(old, "my-tool", ShellKind::BashZsh));
     }
 
     #[test]
     fn test_alias_already_exists_fish() {
-        let content = "function my-tool; ring-cli --alias-mode my-tool $argv; end # ring-cli\n";
+        let content = "function my-tool; stampo --alias-mode my-tool $argv; end # stampo\n";
         assert!(alias_exists(content, "my-tool", ShellKind::Fish));
         assert!(!alias_exists(content, "other-tool", ShellKind::Fish));
         // Old alias format still detected
-        let old = "alias my-tool 'ring-cli --alias-mode my-tool' # ring-cli\n";
+        let old = "alias my-tool 'stampo --alias-mode my-tool' # stampo\n";
         assert!(alias_exists(old, "my-tool", ShellKind::Fish));
     }
 
     #[test]
     fn test_alias_already_exists_powershell() {
-        let content = "function my-tool { ring-cli --alias-mode my-tool @args } # ring-cli\n";
+        let content = "function my-tool { stampo --alias-mode my-tool @args } # stampo\n";
         assert!(alias_exists(content, "my-tool", ShellKind::PowerShell));
         assert!(!alias_exists(content, "other-tool", ShellKind::PowerShell));
     }
 
     #[test]
-    fn test_clean_alias_lines_removes_ring_cli_entries() {
-        let content = "# my stuff\nos() { ring-cli --alias-mode os \"$@\"; } # ring-cli\neval \"$(ring-cli --generate-completions zsh os)\" # ring-cli-completions:os\nring-cli --check-updates os # ring-cli-update-check:os\nexport PATH=$HOME/bin:$PATH\n";
+    fn test_clean_alias_lines_removes_stampo_entries() {
+        let content = "# my stuff\nos() { stampo --alias-mode os \"$@\"; } # stampo\neval \"$(stampo --generate-completions zsh os)\" # stampo-completions:os\nstampo --check-updates os # stampo-update-check:os\nexport PATH=$HOME/bin:$PATH\n";
         let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
         assert_eq!(cleaned, "# my stuff\nexport PATH=$HOME/bin:$PATH\n");
     }
 
     #[test]
     fn test_clean_alias_lines_removes_old_alias_format() {
-        let content = "alias os='ring-cli --alias-mode os' # ring-cli\neval \"$(ring-cli --generate-completions zsh os)\" # ring-cli-completions:os\n";
+        let content = "alias os='stampo --alias-mode os' # stampo\neval \"$(stampo --generate-completions zsh os)\" # stampo-completions:os\n";
         let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
         assert_eq!(cleaned, "\n");
     }
 
     #[test]
     fn test_clean_alias_lines_preserves_other_aliases() {
-        let content = "os() { ring-cli --alias-mode os \"$@\"; } # ring-cli\nalias other='something'\n";
+        let content = "os() { stampo --alias-mode os \"$@\"; } # stampo\nalias other='something'\n";
         let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
         assert_eq!(cleaned, "alias other='something'\n");
     }
 
     #[test]
-    fn test_clean_alias_lines_ignores_non_ring_cli_function() {
+    fn test_clean_alias_lines_ignores_non_stampo_function() {
         let content = "os() { my-custom-command; }\n";
         let cleaned = clean_alias_lines(content, "os", ShellKind::BashZsh);
         assert_eq!(cleaned, "os() { my-custom-command; }\n");

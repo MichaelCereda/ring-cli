@@ -33,7 +33,7 @@ pub fn process_openapi_source(
     let raw_content = if is_remote {
         if !yes {
             eprint!(
-                "Warning: ring-cli will use '{}' to download {}\nContinue? [Y/n] ",
+                "Warning: stampo will use '{}' to download {}\nContinue? [Y/n] ",
                 tool, source
             );
             let mut input = String::new();

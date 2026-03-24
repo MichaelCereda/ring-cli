@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::errors::RingError;
+use crate::errors::StampoError;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {
@@ -25,16 +25,16 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn validate(&self, context: &str) -> Result<(), RingError> {
+    pub fn validate(&self, context: &str) -> Result<(), StampoError> {
         match (&self.cmd, &self.subcommands) {
             (Some(_), Some(_)) => {
-                return Err(RingError::Validation {
+                return Err(StampoError::Validation {
                     context: context.to_string(),
                     message: "Only 'cmd' or 'subcommands' should be present, not both.".to_string(),
                 })
             }
             (None, None) => {
-                return Err(RingError::Validation {
+                return Err(StampoError::Validation {
                     context: context.to_string(),
                     message: "Either 'cmd' or 'subcommands' must be present.".to_string(),
                 })

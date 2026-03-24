@@ -1,10 +1,10 @@
 # OpenAPI Support Guide
 
-Ring-cli can transform OpenAPI 3.0+ specifications into ready-to-use command-line tools. This guide covers how to use OpenAPI specs with ring-cli, from fetching remote specs to mixing OpenAPI configs with regular YAML configs.
+Stampo can transform OpenAPI 3.0+ specifications into ready-to-use command-line tools. This guide covers how to use OpenAPI specs with stampo, from fetching remote specs to mixing OpenAPI configs with regular YAML configs.
 
 ## What is OpenAPI Support
 
-OpenAPI 3.0+ is a standard format for describing REST APIs. Ring-cli reads an OpenAPI spec and automatically generates CLI commands based on the API's paths, methods, parameters, and request bodies. This eliminates the need to manually write YAML configuration files for every API endpoint.
+OpenAPI 3.0+ is a standard format for describing REST APIs. Stampo reads an OpenAPI spec and automatically generates CLI commands based on the API's paths, methods, parameters, and request bodies. This eliminates the need to manually write YAML configuration files for every API endpoint.
 
 Key features:
 
@@ -28,10 +28,10 @@ curl -s https://api.example.com/openapi.json -o petstore.json
 2. Initialize an alias with the spec:
 
 ```bash
-ring-cli init --alias myapi --config-path openapi:./petstore.json
+stampo init --alias myapi --config-path openapi:./petstore.json
 ```
 
-Ring-cli parses the spec, generates commands, and caches them. Your alias is ready to use.
+Stampo parses the spec, generates commands, and caches them. Your alias is ready to use.
 
 3. Use it:
 
@@ -54,20 +54,20 @@ To fetch and use a remote OpenAPI spec:
 1. Initialize with a URL:
 
 ```bash
-ring-cli init --alias github --config-path openapi:https://api.example.com/openapi.yml
+stampo init --alias github --config-path openapi:https://api.example.com/openapi.yml
 ```
 
-2. Ring-cli detects curl or wget, prompts for download consent (to protect against accidental network access):
+2. Stampo detects curl or wget, prompts for download consent (to protect against accidental network access):
 
 ```
-Warning: ring-cli will use 'curl' to download https://api.example.com/openapi.yml
+Warning: stampo will use 'curl' to download https://api.example.com/openapi.yml
 Continue? [Y/n]
 ```
 
 3. Type `y` or use `--yes` to skip the prompt (useful for CI/CD):
 
 ```bash
-ring-cli init --alias github --config-path openapi:https://api.example.com/openapi.yml --yes
+stampo init --alias github --config-path openapi:https://api.example.com/openapi.yml --yes
 ```
 
 4. The spec is downloaded, parsed, transformed, and cached. Commands work the same as with a local spec.
@@ -105,7 +105,7 @@ DELETE /pets/{petId}
 GET    /pets/{petId}/toys
 ```
 
-Ring-cli generates:
+Stampo generates:
 
 ```
 myapi pets list
@@ -117,7 +117,7 @@ myapi pets toys list --pet-id <value>
 
 ## Request Bodies as Flags
 
-When an operation accepts a JSON request body, ring-cli flattens the schema into flat flags with dot-notation. For example:
+When an operation accepts a JSON request body, stampo flattens the schema into flat flags with dot-notation. For example:
 
 ### Simple Nested Schema
 
@@ -151,7 +151,7 @@ Usage:
 myapi pets create --name "Fluffy" --owner.email "alice@example.com"
 ```
 
-Ring-cli automatically constructs the JSON body:
+Stampo automatically constructs the JSON body:
 
 ```json
 {
@@ -190,7 +190,7 @@ myapi pets create --name "Spot" --owner.address.city "Portland"
 
 ## Authentication via Environment Variables
 
-OpenAPI specs can define security schemes (Bearer tokens, API keys). Ring-cli extracts these and injects them as environment variables.
+OpenAPI specs can define security schemes (Bearer tokens, API keys). Stampo extracts these and injects them as environment variables.
 
 ### Bearer Token
 
@@ -206,7 +206,7 @@ security:
   - bearerAuth: []
 ```
 
-Ring-cli converts the scheme name `bearerAuth` to the environment variable `BEARER_AUTH_TOKEN` and injects it:
+Stampo converts the scheme name `bearerAuth` to the environment variable `BEARER_AUTH_TOKEN` and injects it:
 
 Generated curl command:
 
@@ -236,7 +236,7 @@ security:
   - apiKey: []
 ```
 
-Ring-cli converts to `API_KEY_TOKEN` and injects it:
+Stampo converts to `API_KEY_TOKEN` and injects it:
 
 ```bash
 curl -H 'X-API-Key: ${{env.API_KEY_TOKEN}}' https://api.example.com/pets
@@ -261,7 +261,7 @@ When the API spec changes, refresh your cached commands:
 myapi refresh-configuration
 ```
 
-Ring-cli:
+Stampo:
 
 1. Fetches the spec again (if remote)
 2. Compares hashes of the raw spec with the cached version
@@ -293,7 +293,7 @@ Using cached version from 2026-03-15
 You can combine OpenAPI-generated commands with custom YAML commands in a single alias. Each config becomes a top-level subcommand:
 
 ```bash
-ring-cli init --alias infra \
+stampo init --alias infra \
   --config-path ./deploy.yml \
   --config-path openapi:./api-spec.yml
 ```
@@ -306,7 +306,7 @@ infra api pets list           # from openapi:./api-spec.yml (config name: "api")
 infra api pets get --pet-id 5
 ```
 
-Ring-cli generates the config name from the OpenAPI spec's `info.title` field (or falls back to the filename). To avoid conflicts, ensure config names are unique across all files.
+Stampo generates the config name from the OpenAPI spec's `info.title` field (or falls back to the filename). To avoid conflicts, ensure config names are unique across all files.
 
 ### References File with OpenAPI
 
@@ -323,7 +323,7 @@ configs:
 
 ## HTTP Tool Requirements
 
-Ring-cli requires **curl** or **wget** to execute generated commands. At init time, ring-cli auto-detects which tool is available:
+Stampo requires **curl** or **wget** to execute generated commands. At init time, stampo auto-detects which tool is available:
 
 1. Check for `curl --version`
 2. If not found, check for `wget --version`
@@ -333,7 +333,7 @@ Generated commands use whichever tool was detected. The tool is remembered in th
 
 ### Handling Missing Tools
 
-If curl/wget becomes unavailable after init, ring-cli errors clearly:
+If curl/wget becomes unavailable after init, stampo errors clearly:
 
 ```
 Error: curl is not installed. Please install curl or wget to use this alias.
@@ -343,7 +343,7 @@ Install the missing tool and run `refresh-configuration`.
 
 ## Known Limitations
 
-Ring-cli makes best-effort approximations for some OpenAPI features. Unsupported or partially-supported features:
+Stampo makes best-effort approximations for some OpenAPI features. Unsupported or partially-supported features:
 
 | Feature | Behavior |
 |---|---|
@@ -360,7 +360,7 @@ Ring-cli makes best-effort approximations for some OpenAPI features. Unsupported
 | **Server variables** | Ignored; first server URL used as-is |
 | **Discriminators** | Ignored; all variants treated as possible fields |
 
-When unsupported features are encountered, `ring-cli init` prints a summary:
+When unsupported features are encountered, `stampo init` prints a summary:
 
 ```
 Generated 12 commands from OpenAPI spec
@@ -371,14 +371,14 @@ Skipped 2 operations (unsupported content types)
 Use `--verbose` during init to see detailed warnings:
 
 ```bash
-ring-cli init --alias api --config-path openapi:./spec.yml --verbose
+stampo init --alias api --config-path openapi:./spec.yml --verbose
 ```
 
 ## Troubleshooting
 
 ### "curl or wget is required"
 
-Ring-cli could not find curl or wget on your system.
+Stampo could not find curl or wget on your system.
 
 **Solution:** Install one of them:
 
@@ -393,7 +393,7 @@ sudo apt-get install curl
 choco install curl
 ```
 
-Then run `ring-cli init` again.
+Then run `stampo init` again.
 
 ### "Swagger 2.0 not yet supported"
 
@@ -403,7 +403,7 @@ Your OpenAPI spec is in Swagger 2.0 format.
 
 ### "Invalid OpenAPI spec"
 
-Ring-cli could not parse the spec as valid JSON or YAML.
+Stampo could not parse the spec as valid JSON or YAML.
 
 **Troubleshooting:**
 
@@ -422,7 +422,7 @@ The spec URL is unreachable or returns an error.
 curl -I https://api.example.com/openapi.yml
 
 # Use --yes to skip confirmation and see full error
-ring-cli init --alias api --config-path openapi:https://api.example.com/openapi.yml --yes
+stampo init --alias api --config-path openapi:https://api.example.com/openapi.yml --yes
 ```
 
 ### Generated commands are incomplete
@@ -432,10 +432,10 @@ Some API operations may be skipped due to unsupported content types.
 **Solution:** Use `--verbose` to see details:
 
 ```bash
-ring-cli init --alias api --config-path openapi:./spec.yml --verbose
+stampo init --alias api --config-path openapi:./spec.yml --verbose
 ```
 
-Ring-cli will list all skipped operations and their reasons.
+Stampo will list all skipped operations and their reasons.
 
 ### Deeply nested flags are hard to type
 
@@ -459,7 +459,7 @@ alias my_create_pet='myapi pets create --owner.address.country.name'
 Create an alias from the public Petstore API:
 
 ```bash
-ring-cli init --alias petstore --config-path openapi:https://petstore.swagger.io/v2/swagger.json --yes
+stampo init --alias petstore --config-path openapi:https://petstore.swagger.io/v2/swagger.json --yes
 ```
 
 (Note: Swagger 2.0 will be rejected; see Known Limitations.)
@@ -471,7 +471,7 @@ For OpenAPI 3.0 example specs, visit [apis.guru](https://apis.guru).
 Example `api.yml` mixing OpenAPI with a manual deploy command:
 
 ```bash
-ring-cli init --alias ops \
+stampo init --alias ops \
   --config-path ./deploy.yml \
   --config-path openapi:./user-api.json
 ```
@@ -498,17 +498,17 @@ To keep specs fresh in CI/CD:
 #!/bin/bash
 # Fetch latest spec and refresh alias
 curl -s https://api.example.com/openapi.json -o /tmp/latest.json
-ring-cli init --alias api --config-path openapi:/tmp/latest.json --force --yes
+stampo init --alias api --config-path openapi:/tmp/latest.json --force --yes
 ```
 
 ## Architecture Details
 
-For developers interested in how ring-cli transforms OpenAPI specs:
+For developers interested in how stampo transforms OpenAPI specs:
 
-- Ring-cli parses the spec into an `openapiv3` structure
+- Stampo parses the spec into an `openapiv3` structure
 - Paths are organized into a command hierarchy tree based on non-parameter segments
 - Path, query, and body parameters become flags
 - Curl/wget commands are generated with proper headers, query strings, and JSON bodies
-- The entire `Configuration` struct is cached in `~/.ring-cli/aliases/<name>/`
+- The entire `Configuration` struct is cached in `~/.stampo/aliases/<name>/`
 - On refresh, the raw spec hash is compared; if changed, you're prompted to trust the new version
 - The cached copy continues working even if the original spec URL becomes unavailable

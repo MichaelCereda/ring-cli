@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 
-use crate::errors::RingError;
+use crate::errors::StampoError;
 use crate::models::Configuration;
 
 pub fn replace_placeholders(
@@ -19,7 +19,7 @@ pub fn replace_placeholders(
     result
 }
 
-pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, RingError> {
+pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, StampoError> {
     let mut result = template.to_string();
     let mut pos = 0;
     loop {
@@ -27,11 +27,11 @@ pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, RingErr
         let Some(offset) = search.find("${{env.") else { break };
         let start = pos + offset;
         let rest = &result[start + 7..];
-        let end = rest.find("}}").ok_or_else(|| RingError::Config(
+        let end = rest.find("}}").ok_or_else(|| StampoError::Config(
             format!("Unclosed placeholder starting at position {}", start),
         ))?;
         let var_name = rest[..end].to_string();
-        let var_value = std::env::var(&var_name).map_err(|_| RingError::EnvVar {
+        let var_value = std::env::var(&var_name).map_err(|_| StampoError::EnvVar {
             name: var_name.clone(),
         })?;
         if verbose {
@@ -47,15 +47,15 @@ pub fn replace_env_vars(template: &str, verbose: bool) -> Result<String, RingErr
 /// Load a single `Configuration` from a file path.
 ///
 /// Reads, parses and validates the YAML at `config_path`, returning the
-/// resulting `Configuration` or a `RingError` on any failure.
-pub fn load_configuration(config_path: &str) -> Result<Configuration, RingError> {
+/// resulting `Configuration` or a `StampoError` on any failure.
+pub fn load_configuration(config_path: &str) -> Result<Configuration, StampoError> {
     let path = std::path::Path::new(config_path);
     let path_str = path.display().to_string();
-    let content = fs::read_to_string(path).map_err(|e| RingError::Io {
+    let content = fs::read_to_string(path).map_err(|e| StampoError::Io {
         path: path_str.clone(),
         source: e,
     })?;
-    let config: Configuration = serde_saphyr::from_str(&content).map_err(|e| RingError::YamlParse {
+    let config: Configuration = serde_saphyr::from_str(&content).map_err(|e| StampoError::YamlParse {
         path: path_str,
         source: Box::new(e),
     })?;

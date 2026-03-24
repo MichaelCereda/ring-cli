@@ -12,7 +12,7 @@ use openapiv3::OpenAPI;
 ///
 /// ```no_run
 /// let content = std::fs::read_to_string("tests/fixtures/petstore.json").unwrap();
-/// let spec = ring_cli::openapi::parser::parse_spec(&content).unwrap();
+/// let spec = stampo::openapi::parser::parse_spec(&content).unwrap();
 /// assert_eq!(spec.openapi, "3.0.0");
 /// ```
 pub fn parse_spec(content: &str) -> Result<OpenAPI, anyhow::Error> {

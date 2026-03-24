@@ -176,7 +176,7 @@ fn main() -> anyhow::Result<()> {
             out
         };
 
-        let matches = cli::build_cli(&configs, "ring-cli", None).get_matches_from(clap_args);
+        let matches = cli::build_cli(&configs, "stampo", None).get_matches_from(clap_args);
 
         // Initialize color mode
         let color_str = matches.get_one::<String>("color").map(|s| s.as_str()).unwrap_or("auto");
@@ -192,7 +192,7 @@ fn main() -> anyhow::Result<()> {
         // Handle refresh-configuration
         if matches.subcommand_matches("refresh-configuration").is_some() {
             // In legacy mode we don't have an alias name — inform user to reinitialise
-            eprintln!("{}", style::error("refresh-configuration requires --alias-mode. Please re-run 'ring-cli init' to update your alias."));
+            eprintln!("{}", style::error("refresh-configuration requires --alias-mode. Please re-run 'stampo init' to update your alias."));
             std::process::exit(1);
         }
 
@@ -212,7 +212,7 @@ fn main() -> anyhow::Result<()> {
         }
     } else {
         // INSTALLER MODE
-        let matches = cli::build_ring_cli().get_matches();
+        let matches = cli::build_stampo_cli().get_matches();
 
         if let Some(init_matches) = matches.subcommand_matches("init") {
             let config_paths = init_matches.get_many::<String>("config-path");

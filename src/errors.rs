@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum RingError {
+pub enum StampoError {
     #[error("Config error: {0}")]
     Config(String),
 

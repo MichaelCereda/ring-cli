@@ -168,7 +168,7 @@ pub(crate) fn handle_refresh_configuration(
 ) -> Result<(), anyhow::Error> {
     let (_, metadata) = cache::load_trusted_configs(alias_name).map_err(|_| {
         anyhow::anyhow!(
-            "No cached configuration found for alias '{alias_name}'. Run 'ring-cli init' first."
+            "No cached configuration found for alias '{alias_name}'. Run 'stampo init' first."
         )
     })?;
 

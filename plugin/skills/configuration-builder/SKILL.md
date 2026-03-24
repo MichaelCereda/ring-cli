@@ -1,43 +1,43 @@
 ---
 name: configuration-builder
-description: Use when creating CLI tools from scratch using ring-cli, converting MCP server tools into shell commands, or generating ring-cli YAML configurations from natural language descriptions
+description: Use when creating CLI tools from scratch using stampo, converting MCP server tools into shell commands, or generating stampo YAML configurations from natural language descriptions
 ---
 
-# ring-cli Builder
+# Stampo Builder
 
-Create CLI tools powered by ring-cli. Two modes:
+Create CLI tools powered by stampo. Two modes:
 
-1. **Create a CLI from scratch** - user describes commands, you generate ring-cli YAML configs
-2. **Convert MCP tools to CLI** - read MCP server definitions, generate equivalent ring-cli configs
+1. **Create a CLI from scratch** - user describes commands, you generate stampo YAML configs
+2. **Convert MCP tools to CLI** - read MCP server definitions, generate equivalent stampo configs
 
-## About ring-cli
+## About stampo
 
-ring-cli is a CLI generator that turns YAML configs into complete command-line tools. Single static binary, zero runtime dependencies.
+stampo is a CLI generator that turns YAML configs into complete command-line tools. Single static binary, zero runtime dependencies.
 
-- **Repository:** https://github.com/MichaelCereda/ring-cli
-- **Documentation:** https://github.com/MichaelCereda/ring-cli/blob/master/docs/configuration-reference.md
+- **Repository:** https://github.com/MichaelCereda/stampo
+- **Documentation:** https://github.com/MichaelCereda/stampo/blob/master/docs/configuration-reference.md
 
 ## Prerequisites
 
-Verify ring-cli is installed before generating configs:
+Verify stampo is installed before generating configs:
 
 ```bash
-ring-cli --version
+stampo --version
 ```
 
 If not installed, ask the user if they'd like you to install it. If they agree, detect the platform and use the appropriate method:
 
 - **macOS/Linux (recommended):**
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install.sh | sh
   ```
 - **Homebrew:**
   ```bash
-  brew install michaelcereda/ring-cli/ring-cli
+  brew install michaelcereda/stampo/stampo
   ```
 - **From source (requires Rust):**
   ```bash
-  cargo install ring-cli
+  cargo install stampo
   ```
 
 Do NOT install without the user's explicit consent.
@@ -61,7 +61,7 @@ If the user's message already makes their intent clear, skip the question.
 1. Ask the user to describe their CLI: what it does, what commands it needs
 2. For each command, understand: description, flags (with types/descriptions), and the shell command to run
 3. If hierarchical commands, use `subcommands` nesting
-4. Generate valid ring-cli YAML config (version 2.0)
+4. Generate valid stampo YAML config (version 2.0)
 5. Show config for review
 6. Ask whether to install it
 
@@ -228,38 +228,38 @@ commands:
 
 ### Saving
 
-Save configs to `.ring-cli/<name>.yml` in the current working directory. Create `.ring-cli/` if needed. Use a different path if the user specifies one.
+Save configs to `.stampo/<name>.yml` in the current working directory. Create `.stampo/` if needed. Use a different path if the user specifies one.
 
 ### After Generation
 
 Show the complete YAML, then:
 
-> Config saved to `.ring-cli/<name>.yml`.
+> Config saved to `.stampo/<name>.yml`.
 > Want me to install this as a shell alias? I'll run:
-> `ring-cli init --alias <name> --config-path .ring-cli/<name>.yml`
+> `stampo init --alias <name> --config-path .stampo/<name>.yml`
 
 If yes, run init. If alias exists, add `--force`.
 
 If no:
-> To install later: `ring-cli init --alias <name> --config-path .ring-cli/<name>.yml`
+> To install later: `stampo init --alias <name> --config-path .stampo/<name>.yml`
 
 ### Multiple Configs
 
 For multiple MCP servers, generate one config per server and suggest a references file:
 
 ```yaml
-# .ring-cli/references.yml
+# .stampo/references.yml
 configs:
   - github.yml
   - docker.yml
   - database.yml
 ```
 
-Init with: `ring-cli init --alias tools --references .ring-cli/references.yml`
+Init with: `stampo init --alias tools --references .stampo/references.yml`
 
 ## Error Handling
 
-- **ring-cli not installed:** Ask the user if you should install it. Offer the install methods from Prerequisites. Only proceed with their consent.
+- **stampo not installed:** Ask the user if you should install it. Offer the install methods from Prerequisites. Only proceed with their consent.
 - **Invalid YAML:** Validate structure before saving. Each command needs `cmd` or `subcommands`, not both
-- **ring-cli init fails:** Show error, suggest `--force` for existing aliases
+- **stampo init fails:** Show error, suggest `--force` for existing aliases
 - **No .mcp.json found:** Ask user to describe tools manually

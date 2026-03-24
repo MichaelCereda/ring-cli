@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::process::Command as ShellCommand;
 
-use crate::errors::RingError;
-use crate::models::{Command as RingCommand, Configuration};
+use crate::errors::StampoError;
+use crate::models::{Command as StampoCommand, Configuration};
 use crate::config::{replace_env_vars, replace_placeholders};
 
 fn extract_flag_values(
@@ -30,7 +30,7 @@ fn build_arg(flag: &crate::models::Flag) -> clap::Arg {
 }
 
 pub fn add_subcommands_to_cli(
-    command: &RingCommand,
+    command: &StampoCommand,
     cmd_subcommand: clap::Command,
 ) -> clap::Command {
     let mut updated_subcommand = cmd_subcommand;
@@ -119,13 +119,13 @@ pub fn build_cli(configs: &[Configuration], bin_name: &str, description: Option<
     app
 }
 
-/// Build the CLI for installer mode (`ring-cli` binary direct invocation).
+/// Build the CLI for installer mode (`stampo` binary direct invocation).
 /// Exposes only the `init` subcommand with `--alias`, `--config-path` (repeatable),
 /// and `--warn-only-on-conflict` flags.
-pub fn build_ring_cli() -> clap::Command {
-    clap::Command::new("ring-cli")
+pub fn build_stampo_cli() -> clap::Command {
+    clap::Command::new("stampo")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("CLI generator from YAML configurations")
+        .about("Turn any API or config into a real CLI")
         .subcommand(
             clap::Command::new("init")
                 .about("Create a new configuration and install as a shell alias")
@@ -196,7 +196,7 @@ fn run_shell_commands(
     flag_values: &HashMap<String, String>,
     verbose: bool,
     base_dir: Option<&str>,
-) -> Result<String, RingError> {
+) -> Result<String, StampoError> {
     let mut output_text = String::new();
     for cmd in commands {
         let replaced_cmd = replace_placeholders(cmd, flag_values, verbose);
@@ -208,7 +208,7 @@ fn run_shell_commands(
             command.current_dir(dir);
         }
 
-        let output = command.output().map_err(|e| RingError::ShellCommand {
+        let output = command.output().map_err(|e| StampoError::ShellCommand {
             command: replaced_cmd.clone(),
             code: -1,
             stderr: e.to_string(),
@@ -217,7 +217,7 @@ fn run_shell_commands(
         if output.status.success() {
             output_text.push_str(&String::from_utf8_lossy(&output.stdout));
         } else {
-            return Err(RingError::ShellCommand {
+            return Err(StampoError::ShellCommand {
                 command: replaced_cmd,
                 code: output.status.code().unwrap_or(-1),
                 stderr: String::from_utf8_lossy(&output.stderr).to_string(),
@@ -228,11 +228,11 @@ fn run_shell_commands(
 }
 
 pub fn execute_command(
-    command: &RingCommand,
+    command: &StampoCommand,
     cmd_matches: &clap::ArgMatches,
     verbose: bool,
     base_dir: Option<&str>,
-) -> Result<(), RingError> {
+) -> Result<(), StampoError> {
     let flag_values = extract_flag_values(&command.flags, cmd_matches);
 
     if verbose {
@@ -259,13 +259,13 @@ pub fn execute_command(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CmdType, Command as RingCommand, Configuration, Flag};
+    use crate::models::{CmdType, Command as StampoCommand, Configuration, Flag};
 
     fn make_test_config() -> Configuration {
         let mut commands = HashMap::new();
         commands.insert(
             "greet".to_string(),
-            RingCommand {
+            StampoCommand {
                 description: "Greet a user".to_string(),
                 flags: vec![Flag {
                     name: "name".to_string(),
@@ -289,9 +289,9 @@ mod tests {
     #[test]
     fn test_build_cli_has_config_subcommand() {
         let config = make_test_config();
-        let app = build_cli(&[config], "ring-cli", None);
+        let app = build_cli(&[config], "stampo", None);
         let matches = app
-            .try_get_matches_from(["ring-cli", "test", "greet", "--name", "Alice"])
+            .try_get_matches_from(["stampo", "test", "greet", "--name", "Alice"])
             .expect("should parse");
         let test_matches = matches.subcommand_matches("test").expect("test subcommand");
         let greet_matches = test_matches.subcommand_matches("greet").expect("greet subcommand");
@@ -309,9 +309,9 @@ mod tests {
             banner: None,
             commands: HashMap::new(),
         };
-        let app = build_cli(&[empty_config], "ring-cli", None);
+        let app = build_cli(&[empty_config], "stampo", None);
         let matches = app
-            .try_get_matches_from(["ring-cli", "-q", "-v"])
+            .try_get_matches_from(["stampo", "-q", "-v"])
             .expect("should parse");
         assert!(matches.get_flag("quiet"));
         assert!(matches.get_flag("verbose"));
@@ -322,7 +322,7 @@ mod tests {
         let mut migrate_subs = HashMap::new();
         migrate_subs.insert(
             "migrate".to_string(),
-            RingCommand {
+            StampoCommand {
                 description: "Run migrations".to_string(),
                 flags: vec![],
                 cmd: Some(CmdType { run: vec!["echo migrating".to_string()] }),
@@ -332,7 +332,7 @@ mod tests {
         let mut commands = HashMap::new();
         commands.insert(
             "db".to_string(),
-            RingCommand {
+            StampoCommand {
                 description: "Database operations".to_string(),
                 flags: vec![],
                 cmd: None,
@@ -347,9 +347,9 @@ mod tests {
             banner: None,
             commands,
         };
-        let app = build_cli(&[config], "ring-cli", None);
+        let app = build_cli(&[config], "stampo", None);
         let matches = app
-            .try_get_matches_from(["ring-cli", "nested", "db", "migrate"])
+            .try_get_matches_from(["stampo", "nested", "db", "migrate"])
             .expect("should parse nested subcommands");
         let nested_matches = matches.subcommand_matches("nested").expect("nested subcommand");
         let db_matches = nested_matches.subcommand_matches("db").expect("db subcommand");
@@ -377,10 +377,10 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ring_cli_has_init() {
-        let app = build_ring_cli();
+    fn test_build_stampo_cli_has_init() {
+        let app = build_stampo_cli();
         let matches = app
-            .try_get_matches_from(["ring-cli", "init", "--alias", "my-tool"])
+            .try_get_matches_from(["stampo", "init", "--alias", "my-tool"])
             .expect("should parse");
         let init_matches = matches.subcommand_matches("init").expect("init subcommand");
         let alias = init_matches.get_one::<String>("alias").expect("alias flag");
@@ -388,11 +388,11 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ring_cli_init_accepts_multiple_config_paths() {
-        let app = build_ring_cli();
+    fn test_build_stampo_cli_init_accepts_multiple_config_paths() {
+        let app = build_stampo_cli();
         let matches = app
             .try_get_matches_from([
-                "ring-cli",
+                "stampo",
                 "init",
                 "--alias",
                 "my-tool",
@@ -411,11 +411,11 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ring_cli_init_check_for_updates() {
-        let app = build_ring_cli();
+    fn test_build_stampo_cli_init_check_for_updates() {
+        let app = build_stampo_cli();
         let matches = app
             .try_get_matches_from([
-                "ring-cli",
+                "stampo",
                 "init",
                 "--alias",
                 "my-tool",
@@ -427,11 +427,11 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ring_cli_init_force_flag() {
-        let app = build_ring_cli();
+    fn test_build_stampo_cli_init_force_flag() {
+        let app = build_stampo_cli();
         let matches = app
             .try_get_matches_from([
-                "ring-cli",
+                "stampo",
                 "init",
                 "--alias",
                 "my-tool",
@@ -445,9 +445,9 @@ mod tests {
     #[test]
     fn test_build_cli_has_refresh_configuration() {
         let config = make_test_config();
-        let app = build_cli(&[config], "ring-cli", None);
+        let app = build_cli(&[config], "stampo", None);
         let matches = app
-            .try_get_matches_from(["ring-cli", "refresh-configuration"])
+            .try_get_matches_from(["stampo", "refresh-configuration"])
             .expect("should parse");
         assert!(matches.subcommand_matches("refresh-configuration").is_some());
     }
@@ -455,9 +455,9 @@ mod tests {
     #[test]
     fn test_build_cli_color_flag() {
         let config = make_test_config();
-        let app = build_cli(&[config], "ring-cli", None);
+        let app = build_cli(&[config], "stampo", None);
         let matches = app
-            .try_get_matches_from(["ring-cli", "--color=never"])
+            .try_get_matches_from(["stampo", "--color=never"])
             .expect("should parse");
         let color = matches.get_one::<String>("color").expect("color flag");
         assert_eq!(color, "never");

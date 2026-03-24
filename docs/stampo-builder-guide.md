@@ -1,10 +1,10 @@
 # CLI Builder Guide
 
-The ring-cli plugin for Claude Code helps you create ring-cli configurations from natural language descriptions or convert MCP server tools into standalone shell commands.
+The stampo plugin for Claude Code helps you create stampo configurations from natural language descriptions or convert MCP server tools into standalone shell commands.
 
 ## Prerequisites
 
-- [ring-cli](../README.md) installed (`ring-cli --version` to check)
+- [stampo](../README.md) installed (`stampo --version` to check)
 - [Claude Code](https://claude.com/claude-code) CLI
 
 ## Installation
@@ -12,7 +12,7 @@ The ring-cli plugin for Claude Code helps you create ring-cli configurations fro
 Install the skill with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install-skill.sh | sh
 ```
 
 This downloads the skill into `~/.claude/skills/configuration-builder/` so it's available in every project.
@@ -23,21 +23,21 @@ For local development, you can also point Claude Code at the plugin directory:
 claude --plugin-dir ./plugin
 ```
 
-Once installed, the `/ring-cli:configuration-builder` skill is available in every project.
+Once installed, the `/stampo:configuration-builder` skill is available in every project.
 
 ## Creating a CLI from Scratch
 
 Ask Claude Code to build a CLI and the skill activates automatically, or invoke it directly:
 
 ```
-> /ring-cli:configuration-builder
+> /stampo:configuration-builder
 > I need a CLI for managing my Kubernetes deployments. Commands:
 > - deploy: deploy to a cluster, needs --env and --image flags
 > - rollback: rollback to previous version, needs --env flag
 > - status: check deployment status, needs --env flag
 ```
 
-The skill generates a ring-cli YAML config:
+The skill generates a stampo YAML config:
 
 ```yaml
 version: "2.0"
@@ -76,10 +76,10 @@ commands:
         - "kubectl rollout status deployment/app -n ${{env}}"
 ```
 
-The config is saved to `.ring-cli/k8s.yml` and the skill asks whether to install it. If you say yes:
+The config is saved to `.stampo/k8s.yml` and the skill asks whether to install it. If you say yes:
 
 ```bash
-ring-cli init --alias k8s --config-path .ring-cli/k8s.yml
+stampo init --alias k8s --config-path .stampo/k8s.yml
 ```
 
 After restarting your shell:
@@ -96,15 +96,15 @@ k8s <TAB>              # tab completion works
 If you have MCP servers configured in Claude Code, the skill can convert their tools into shell commands.
 
 ```
-> /ring-cli:configuration-builder
+> /stampo:configuration-builder
 > Convert my MCP tools to a CLI
 ```
 
-The skill reads your `.mcp.json` configuration, discovers the available tools, and generates ring-cli configs for each server.
+The skill reads your `.mcp.json` configuration, discovers the available tools, and generates stampo configs for each server.
 
 ### How Tools Map to Commands
 
-| MCP Concept | ring-cli Equivalent |
+| MCP Concept | stampo Equivalent |
 |---|---|
 | Server name | Config `name` (top-level subcommand) |
 | Tool name | Command name |
@@ -169,7 +169,7 @@ github create-issue --repo myorg/myrepo --title "Fix login bug"
 If you have several MCP servers, the skill generates one config per server and suggests a references file:
 
 ```yaml
-# .ring-cli/references.yml
+# .stampo/references.yml
 configs:
   - github.yml
   - docker.yml
@@ -179,7 +179,7 @@ configs:
 Install all at once:
 
 ```bash
-ring-cli init --alias tools --references .ring-cli/references.yml
+stampo init --alias tools --references .stampo/references.yml
 tools github list-issues --repo myorg/myrepo
 tools docker ps
 tools database query --table users
@@ -206,20 +206,20 @@ After editing, refresh the cached version:
 
 ## Troubleshooting
 
-**ring-cli not found**
-Install ring-cli first:
+**stampo not found**
+Install stampo first:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install.sh | sh
 ```
 
 **No MCP tools found**
 The skill looks for `.mcp.json` in the current directory and `~/.claude/.mcp.json`. If your MCP configuration is elsewhere, describe the tools manually when prompted.
 
 **Alias already exists**
-If `ring-cli init` fails because the alias already exists, the skill will add `--force` to overwrite it. You can also run manually:
+If `stampo init` fails because the alias already exists, the skill will add `--force` to overwrite it. You can also run manually:
 ```bash
-ring-cli init --alias <name> --config-path .ring-cli/<name>.yml --force
+stampo init --alias <name> --config-path .stampo/<name>.yml --force
 ```
 
 **Generated command doesn't work**
-The skill generates best-effort shell commands. For MCP tools without obvious shell equivalents, it creates placeholders. Edit the generated `.ring-cli/<name>.yml` file and replace the placeholder with the correct command.
+The skill generates best-effort shell commands. For MCP tools without obvious shell equivalents, it creates placeholders. Edit the generated `.stampo/<name>.yml` file and replace the placeholder with the correct command.

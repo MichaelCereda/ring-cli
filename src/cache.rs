@@ -40,13 +40,13 @@ pub struct AliasMetadata {
 /// # Examples
 ///
 /// ```no_run
-/// let dir = ring_cli::cache::aliases_dir();
-/// assert!(dir.ends_with(".ring-cli/aliases"));
+/// let dir = stampo::cache::aliases_dir();
+/// assert!(dir.ends_with(".stampo/aliases"));
 /// ```
 pub fn aliases_dir() -> PathBuf {
     dirs::home_dir()
         .expect("Unable to determine home directory")
-        .join(".ring-cli/aliases")
+        .join(".stampo/aliases")
 }
 
 /// Returns the cache directory for a specific alias.
@@ -54,7 +54,7 @@ pub fn aliases_dir() -> PathBuf {
 /// # Examples
 ///
 /// ```no_run
-/// let dir = ring_cli::cache::alias_dir("my-tool");
+/// let dir = stampo::cache::alias_dir("my-tool");
 /// assert!(dir.ends_with("my-tool"));
 /// ```
 pub fn alias_dir(alias_name: &str) -> PathBuf {
@@ -68,7 +68,7 @@ pub fn alias_dir(alias_name: &str) -> PathBuf {
 /// # Examples
 ///
 /// ```
-/// let h = ring_cli::cache::compute_hash("hello");
+/// let h = stampo::cache::compute_hash("hello");
 /// assert_eq!(h.len(), 64); // 256 bits = 64 hex chars
 /// ```
 pub fn compute_hash(content: &str) -> String {
@@ -80,7 +80,7 @@ pub fn compute_hash(content: &str) -> String {
 /// Saves one or more trusted configurations to the local cache.
 ///
 /// Each element of `configs` is `(name, source_path, content)`.  The content
-/// is written to `~/.ring-cli/aliases/<alias_name>/<name>.yml` and a combined
+/// is written to `~/.stampo/aliases/<alias_name>/<name>.yml` and a combined
 /// `metadata.json` records the source path, hash, and trust timestamp for
 /// every entry.
 ///

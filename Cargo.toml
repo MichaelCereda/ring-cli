@@ -1,5 +1,5 @@
 [package]
-name = "ring-cli"
+name = "stampo"
 version = "2.3.0"
 edition = "2024"
 license = "MIT"

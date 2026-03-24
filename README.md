@@ -1,10 +1,10 @@
-# ring-cli -- YAML to CLI Generator
+# stampo — Turn any API or config into a real CLI
 
 Build custom command-line tools from YAML configs or OpenAPI specs. Single static binary, zero runtime dependencies, automatic tab completion, nested subcommands, and trust-based security. Works on Linux, macOS, and Windows.
 
-## What Makes ring-cli Different
+## What Makes stampo Different
 
-ring-cli is a **CLI generator** that turns YAML configs and OpenAPI specs into complete, production-ready command-line tools -- delivered as a single portable binary with zero dependencies.
+stampo is a **CLI generator** that turns YAML configs and OpenAPI specs into complete, production-ready command-line tools -- delivered as a single portable binary with zero dependencies.
 
 No interpreters. No package managers. No frameworks. Drop it on any machine and start building CLIs immediately. The binary has no network capabilities -- it never phones home, never downloads anything on its own, and carries zero attack surface. Safe to run on production servers, CI runners, and air-gapped environments.
 
@@ -12,22 +12,22 @@ No interpreters. No package managers. No frameworks. Drop it on any machine and 
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://github.com/MichaelCereda/ring-cli/releases/latest/download/ring-cli-Windows-x86_64.zip -OutFile ring-cli.zip; Expand-Archive ring-cli.zip -DestinationPath $env:LOCALAPPDATA\ring-cli -Force; $env:PATH += ";$env:LOCALAPPDATA\ring-cli"
+irm https://github.com/MichaelCereda/stampo/releases/latest/download/stampo-Windows-x86_64.zip -OutFile stampo.zip; Expand-Archive stampo.zip -DestinationPath $env:LOCALAPPDATA\stampo -Force; $env:PATH += ";$env:LOCALAPPDATA\stampo"
 ```
 
 **Homebrew (macOS / Linux):**
 ```bash
-brew install michaelcereda/ring-cli/ring-cli
+brew install michaelcereda/stampo/stampo
 ```
 
 **From source:**
 ```bash
-cargo install ring-cli
+cargo install stampo
 ```
 
 ## Quick Start: From YAML
@@ -52,7 +52,7 @@ commands:
 Install as a shell alias:
 
 ```bash
-ring-cli init --alias ops --config-path deploy.yml --description "Deployment tools"
+stampo init --alias ops --config-path deploy.yml --description "Deployment tools"
 ```
 
 Use it immediately:
@@ -76,7 +76,7 @@ $ ops <TAB>                   # tab completion at every level
 Turn any OpenAPI 3.0 spec into a CLI:
 
 ```bash
-ring-cli init --alias petstore \
+stampo init --alias petstore \
   --config-path openapi:https://petstore3.swagger.io/api/v3/openapi.json \
   --description "Petstore API client"
 ```
@@ -103,7 +103,7 @@ Paths become commands. Parameters become flags. Request bodies become dot-notati
 Combine multiple configs into one alias -- each becomes a top-level subcommand:
 
 ```bash
-ring-cli init --alias infra \
+stampo init --alias infra \
   --config-path deploy.yml \
   --config-path db.yml \
   --config-path monitoring.yml \
@@ -130,7 +130,7 @@ $ infra monitoring alerts --team backend
 Or use a references file to manage configs together:
 
 ```yaml
-# .ring-cli/references.yml
+# .stampo/references.yml
 description: "Infrastructure management"
 banner: "infra-cli v2.0"
 configs:
@@ -145,7 +145,7 @@ configs:
 
 - **YAML-Driven CLI Generation** -- Define commands, flags, and subcommands in plain YAML. Supports shell commands, scripts, multi-step execution, and environment variable substitution.
 
-- **OpenAPI 3.0 Support** -- Point ring-cli at an OpenAPI spec (local file or remote URL) and get a working CLI automatically. Paths become commands, parameters become flags, request bodies become dot-notation flags, curl/wget for execution.
+- **OpenAPI 3.0 Support** -- Point stampo at an OpenAPI spec (local file or remote URL) and get a working CLI automatically. Paths become commands, parameters become flags, request bodies become dot-notation flags, curl/wget for execution.
 
 - **Tab Completion** -- Bash, Zsh, Fish, and PowerShell completions installed automatically. Works at every level: top-level commands, nested subcommands, and flags.
 
@@ -163,34 +163,34 @@ configs:
 
 - **Nested Subcommands** -- Unlimited nesting depth. Organize complex CLIs into natural hierarchies.
 
-- **Claude Code Plugin** -- Describe the CLI you want in plain English and the `/ring-cli:configuration-builder` skill generates the YAML config, installs it, and sets up tab completion. Also converts MCP server tools into standalone shell commands. See [Claude Code Integration](#claude-code-integration) below.
+- **Claude Code Plugin** -- Describe the CLI you want in plain English and the `/stampo:configuration-builder` skill generates the YAML config, installs it, and sets up tab completion. Also converts MCP server tools into standalone shell commands. See [Claude Code Integration](#claude-code-integration) below.
 
 - **Standards Compliant** -- Respects `NO_COLOR` env var. `--color=always|never|auto` override. `-v` verbose mode. Configurable banners on stderr.
 
 ## Claude Code Integration
 
-ring-cli ships with a [Claude Code](https://claude.com/claude-code) plugin that lets you generate CLI configurations from natural language. Describe the commands you need, and Claude builds the YAML config for you.
+stampo ships with a [Claude Code](https://claude.com/claude-code) plugin that lets you generate CLI configurations from natural language. Describe the commands you need, and Claude builds the YAML config for you.
 
 **Install the skill:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MichaelCereda/ring-cli/master/install-skill.sh | sh
+curl -fsSL https://raw.githubusercontent.com/MichaelCereda/stampo/master/install-skill.sh | sh
 ```
 
-This installs the `/ring-cli:configuration-builder` skill into `~/.claude/skills/`, making it available in every project.
+This installs the `/stampo:configuration-builder` skill into `~/.claude/skills/`, making it available in every project.
 
 **Then use it in any project:**
 
 ```
-> /ring-cli:configuration-builder
+> /stampo:configuration-builder
 > I need a CLI to manage my Docker stack: start, stop, logs, and deploy with an env flag
 ```
 
-Claude generates the ring-cli YAML config, shows it for review, and installs it as a shell alias -- complete with tab completion.
+Claude generates the stampo YAML config, shows it for review, and installs it as a shell alias -- complete with tab completion.
 
-The plugin also converts MCP server tools into shell commands. If you have MCP servers configured in Claude Code, it reads the tool definitions and generates equivalent ring-cli configs using real CLI tools (`gh`, `docker`, `kubectl`, etc.) wherever possible.
+The plugin also converts MCP server tools into shell commands. If you have MCP servers configured in Claude Code, it reads the tool definitions and generates equivalent stampo configs using real CLI tools (`gh`, `docker`, `kubectl`, etc.) wherever possible.
 
-See the [CLI Builder Guide](docs/ring-cli-builder-guide.md) for full details.
+See the [CLI Builder Guide](docs/stampo-builder-guide.md) for full details.
 
 ## Use Cases
 
@@ -208,7 +208,7 @@ See the [CLI Builder Guide](docs/ring-cli-builder-guide.md) for full details.
 - [Getting Started Guide](docs/getting-started.md) -- Detailed walkthrough and configuration format
 - [Configuration Reference](docs/configuration-reference.md) -- Complete YAML schema and field descriptions
 - [OpenAPI Guide](docs/openapi-guide.md) -- OpenAPI specs, flag mapping, authentication, limitations
-- [CLI Builder Guide](docs/ring-cli-builder-guide.md) -- Using the `/ring-cli:configuration-builder` Claude Code plugin
+- [CLI Builder Guide](docs/stampo-builder-guide.md) -- Using the `/stampo:configuration-builder` Claude Code plugin
 - [Setup Guide](docs/setup-guide.md) -- Installation from source, platform notes, troubleshooting
 
 ## License

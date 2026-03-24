@@ -18,9 +18,9 @@ fn test_help_output() {
         .expect("failed to run cargo run");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let combined = format!("{}{}", stdout, String::from_utf8_lossy(&output.stderr));
-    // In installer mode we show the ring-cli about text and the init subcommand.
+    // In installer mode we show the stampo about text and the init subcommand.
     assert!(
-        combined.contains("CLI generator from YAML configurations"),
+        combined.contains("Turn any API or config into a real CLI"),
         "missing about text in:\n{combined}"
     );
     assert!(combined.contains("init"), "missing 'init' subcommand in:\n{combined}");
